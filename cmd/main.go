@@ -10,9 +10,12 @@ import (
 
 // config holds the application configuration
 type config struct {
-	sourceDir  string `yaml:"source_directory"`
-	destDir    string `yaml:"destination_directory"`
-	configFile string
+	SourceDir        string `yaml:"source_directory"`
+	DestDir          string `yaml:"destination_directory"`
+	ConfigFile       string
+	OrganizeByDate   bool `yaml:"organize_by_date"`
+	RenameByDateTime bool `yaml:"rename_by_date_time"`
+	AutoRenameUnique bool `yaml:"auto_rename_unique"`
 }
 
 // setDefaults initializes the config with default values
@@ -22,17 +25,21 @@ func setDefaults(cfg *config) error {
 		return fmt.Errorf("failed to get user home directory: %v", err)
 	}
 
-	cfg.destDir = filepath.Join(homeDir, "Pictures")
-	cfg.configFile = filepath.Join(homeDir, ".gomediaimportrc")
+	cfg.DestDir = filepath.Join(homeDir, "Pictures")
+	cfg.ConfigFile = filepath.Join(homeDir, ".gomediaimportrc")
+	cfg.OrganizeByDate = false
+	cfg.RenameByDateTime = false
+	cfg.AutoRenameUnique = false
 	return nil
 }
 
 // parseConfigFile reads and parses the YAML configuration file
 func parseConfigFile(cfg *config) error {
-	data, err := os.ReadFile(cfg.configFile)
+	data, err := os.ReadFile(cfg.ConfigFile)
 	if err != nil {
 		if os.IsNotExist(err) {
 			// Config file doesn't exist, just return without an error
+			// DEBUG fmt.Println("Config file not found, using defaults")
 			return nil
 		}
 		return fmt.Errorf("failed to read config file: %v", err)
@@ -53,23 +60,23 @@ func parseArgs(cfg *config) error {
 		return fmt.Errorf("source directory is required as the first argument")
 	}
 
-	cfg.sourceDir = os.Args[1]
+	cfg.SourceDir = os.Args[1]
 	return nil
 }
 
 // validateConfig checks if the configuration is valid
 func validateConfig(cfg *config) error {
-	if cfg.sourceDir == "" {
+	if cfg.SourceDir == "" {
 		return fmt.Errorf("source directory is not specified")
 	}
 
-	if cfg.destDir == "" {
+	if cfg.DestDir == "" {
 		return fmt.Errorf("destination directory is not specified")
 	}
 
 	// Check if source directory exists
-	if _, err := os.Stat(cfg.sourceDir); os.IsNotExist(err) {
-		return fmt.Errorf("source directory does not exist: %s", cfg.sourceDir)
+	if _, err := os.Stat(cfg.SourceDir); os.IsNotExist(err) {
+		return fmt.Errorf("source directory does not exist: %s", cfg.SourceDir)
 	}
 
 	return nil
@@ -104,6 +111,22 @@ func main() {
 		return
 	}
 
-	fmt.Println("Source directory:", cfg.sourceDir)
-	fmt.Println("Destination directory:", cfg.destDir)
+	// Call the importMedia function
+	if err := importMedia(cfg); err != nil {
+		fmt.Printf("Error importing media: %v\n", err)
+		return
+	}
+}
+
+// importMedia handles the main functionality of the program
+func importMedia(cfg config) error {
+	fmt.Println("Source directory:", cfg.SourceDir)
+	fmt.Println("Destination directory:", cfg.DestDir)
+	fmt.Println("Organize by date:", cfg.OrganizeByDate)
+	fmt.Println("Rename by date and time:", cfg.RenameByDateTime)
+	fmt.Println("Auto rename unique files:", cfg.AutoRenameUnique)
+
+	// TODO: Implement the actual media import logic here
+
+	return nil
 }
