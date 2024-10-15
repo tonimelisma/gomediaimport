@@ -117,16 +117,3 @@ func main() {
 		return
 	}
 }
-
-// importMedia handles the main functionality of the program
-func importMedia(cfg config) error {
-	fmt.Println("Source directory:", cfg.SourceDir)
-	fmt.Println("Destination directory:", cfg.DestDir)
-	fmt.Println("Organize by date:", cfg.OrganizeByDate)
-	fmt.Println("Rename by date and time:", cfg.RenameByDateTime)
-	fmt.Println("Auto rename unique files:", cfg.AutoRenameUnique)
-
-	// TODO: Implement the actual media import logic here
-
-	return nil
-}
