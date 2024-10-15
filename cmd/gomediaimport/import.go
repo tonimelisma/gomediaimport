@@ -90,6 +90,7 @@ func enumerateFiles(sourceDir string) ([]FileInfo, error) {
 		extractedDateTime, err := extractCreationDateTimeFromMetadata(fileInfo)
 		if err == nil {
 			fileInfo.CreationDateTime = extractedDateTime
+			fmt.Println("extracted date time for ", fileInfo.SourceName, " is ", fileInfo.CreationDateTime)
 		}
 
 		files = append(files, fileInfo)
