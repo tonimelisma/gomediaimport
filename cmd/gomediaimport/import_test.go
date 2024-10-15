@@ -123,16 +123,10 @@ func TestFileInfo(t *testing.T) {
 	now := time.Now()
 	fi := FileInfo{
 		SourceName:       "test.jpg",
-		SourceDir:        "/source",
-		DestName:         "new_test.jpg",
-		DestDir:          "/dest",
-		SourceChecksum:   "abcdef",
-		DestChecksum:     "ghijkl",
 		CreationDateTime: now,
 		Size:             1024,
 		MediaCategory:    MediaCategory("Image"),
 		FileType:         FileType("JPEG"),
-		Status:           "Imported",
 	}
 
 	if fi.SourceName != "test.jpg" {

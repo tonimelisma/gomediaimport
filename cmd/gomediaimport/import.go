@@ -73,7 +73,7 @@ func enumerateFiles(sourceDir string) ([]FileInfo, error) {
 			SourceName:       info.Name(),
 			SourceDir:        filepath.Dir(path),
 			Size:             info.Size(),
-			CreationDateTime: info.ModTime(), // Using ModTime as CreationDateTime
+			CreationDateTime: info.ModTime(), // Using ModTime as default CreationDateTime
 		}
 
 		// Get media type information
@@ -85,6 +85,12 @@ func enumerateFiles(sourceDir string) ([]FileInfo, error) {
 
 		fileInfo.MediaCategory = category
 		fileInfo.FileType = fileType
+
+		// Extract creation date and time from metadata
+		extractedDateTime, err := extractCreationDateTimeFromMetadata(fileInfo)
+		if err == nil {
+			fileInfo.CreationDateTime = extractedDateTime
+		}
 
 		files = append(files, fileInfo)
 		return nil
