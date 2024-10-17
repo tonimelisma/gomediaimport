@@ -64,8 +64,8 @@ func TestGetMediaTypeInfo(t *testing.T) {
 	}
 }
 
-// TestFileExtensionToFileTypeCompleteness checks if all FileType constants are mapped in fileExtensionToFileType
-func TestFileExtensionToFileTypeCompleteness(t *testing.T) {
+// TestFileTypesCompleteness checks if all FileType constants are included in the fileTypes slice
+func TestFileTypesCompleteness(t *testing.T) {
 	allFileTypes := []FileType{
 		JPEG, JPEG2000, JPEGXL, PNG, GIF, BMP, TIFF, PSD, EPS, SVG, ICO, WEBP, HEIF,
 		RAW,
@@ -75,30 +75,45 @@ func TestFileExtensionToFileTypeCompleteness(t *testing.T) {
 
 	for _, fileType := range allFileTypes {
 		found := false
-		for _, mappedType := range fileExtensionToFileType {
-			if mappedType == fileType {
+		for _, ft := range fileTypes {
+			if ft.FileType == fileType {
 				found = true
 				break
 			}
 		}
 		if !found {
-			t.Errorf("FileType %v is not mapped in fileExtensionToFileType", fileType)
+			t.Errorf("FileType %v is not included in the fileTypes slice", fileType)
 		}
 	}
 }
 
-// TestFileTypeToMediaCategoryCompleteness checks if all FileType constants are mapped in fileTypeToMediaCategory
-func TestFileTypeToMediaCategoryCompleteness(t *testing.T) {
-	allFileTypes := []FileType{
-		JPEG, JPEG2000, JPEGXL, PNG, GIF, BMP, TIFF, PSD, EPS, SVG, ICO, WEBP, HEIF,
-		RAW,
-		MP4, AVI, MOV, WMV, FLV, MKV, WEBM, OGV, M4V, THREEGP, THREEG2, ASF, VOB, MTS,
-		RAWVIDEO,
+// TestJPEGDefaultExtension checks if "jpg" is the default extension for JPEG files
+func TestJPEGDefaultExtension(t *testing.T) {
+	jpegExtension := getFirstExtensionForFileType(JPEG)
+	if jpegExtension != "jpg" {
+		t.Errorf("Expected 'jpg' to be the default extension for JPEG files, but got '%s'", jpegExtension)
+	}
+}
+
+// TestGetFirstExtensionForFileType tests the getFirstExtensionForFileType function
+func TestGetFirstExtensionForFileType(t *testing.T) {
+	testCases := []struct {
+		fileType          FileType
+		expectedExtension string
+	}{
+		{JPEG, "jpg"},
+		{PNG, "png"},
+		{RAW, "arw"},
+		{MP4, "mp4"},
+		{RAWVIDEO, "braw"},
 	}
 
-	for _, fileType := range allFileTypes {
-		if _, ok := fileTypeToMediaCategory[fileType]; !ok {
-			t.Errorf("FileType %v is not mapped in fileTypeToMediaCategory", fileType)
-		}
+	for _, tc := range testCases {
+		t.Run(string(tc.fileType), func(t *testing.T) {
+			extension := getFirstExtensionForFileType(tc.fileType)
+			if extension != tc.expectedExtension {
+				t.Errorf("Expected extension %s for %s, but got %s", tc.expectedExtension, tc.fileType, extension)
+			}
+		})
 	}
 }

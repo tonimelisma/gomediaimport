@@ -130,16 +130,6 @@ func enumerateFiles(sourceDir string) ([]FileInfo, error) {
 	return files, nil
 }
 
-// getFirstExtensionForFileType returns the first extension for a given FileType
-func getFirstExtensionForFileType(fileType FileType) string {
-	for ext, ft := range fileExtensionToFileType {
-		if ft == fileType {
-			return ext
-		}
-	}
-	return ""
-}
-
 func setDestinationFilename(file *FileInfo, cfg config) error {
 	baseDir := file.DestDir
 	baseFilename := file.CreationDateTime.Format("20060102_150405")
@@ -150,7 +140,7 @@ func setDestinationFilename(file *FileInfo, cfg config) error {
 		file.DestName = baseFilename + suffix + "." + ext
 		fullPath := filepath.Join(baseDir, file.DestName)
 
-		if exists(file, fullPath) {
+		if exists(fullPath) {
 			if isDuplicate(file, fullPath, cfg.AutoRenameUnique) {
 				file.Status = "pre-existing"
 				return nil
@@ -166,7 +156,7 @@ func setDestinationFilename(file *FileInfo, cfg config) error {
 	return fmt.Errorf("couldn't find a unique filename after 1000 attempts")
 }
 
-func exists(file *FileInfo, destPath string) bool {
+func exists(destPath string) bool {
 	_, err := os.Stat(destPath)
 	return !os.IsNotExist(err)
 }

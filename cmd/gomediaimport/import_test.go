@@ -149,3 +149,130 @@ func TestFileInfo(t *testing.T) {
 		t.Errorf("Expected CreationDateTime %v, but got %v", now, fi.CreationDateTime)
 	}
 }
+
+func TestSetDestinationFilename(t *testing.T) {
+	tempDir, err := ioutil.TempDir("", "test")
+	if err != nil {
+		t.Fatalf("Failed to create temporary directory: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	cfg := config{
+		DestDir:          tempDir,
+		AutoRenameUnique: true,
+	}
+
+	file := &FileInfo{
+		SourceName:       "test.jpg",
+		DestDir:          tempDir,
+		CreationDateTime: time.Date(2023, 5, 1, 10, 30, 0, 0, time.UTC),
+		FileType:         JPEG,
+	}
+
+	err = setDestinationFilename(file, cfg)
+	if err != nil {
+		t.Errorf("setDestinationFilename failed: %v", err)
+	}
+
+	expectedName := "20230501_103000000.jpg"
+	if file.DestName != expectedName {
+		t.Errorf("Expected destination name %s, but got %s", expectedName, file.DestName)
+	}
+
+	// Test with existing file
+	_, err = os.Create(filepath.Join(tempDir, expectedName))
+	if err != nil {
+		t.Fatalf("Failed to create test file: %v", err)
+	}
+
+	err = setDestinationFilename(file, cfg)
+	if err != nil {
+		t.Errorf("setDestinationFilename failed: %v", err)
+	}
+
+	if file.DestName == expectedName {
+		t.Errorf("Expected a different destination name, but got the same: %s", file.DestName)
+	}
+}
+
+func TestIsDuplicate(t *testing.T) {
+	tempDir, err := ioutil.TempDir("", "test")
+	if err != nil {
+		t.Fatalf("Failed to create temporary directory: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	// Create test files
+	sourceFile := filepath.Join(tempDir, "source.txt")
+	duplicateFile := filepath.Join(tempDir, "duplicate.txt")
+	differentFile := filepath.Join(tempDir, "different.txt")
+
+	content := []byte("test content")
+	err = ioutil.WriteFile(sourceFile, content, 0644)
+	if err != nil {
+		t.Fatalf("Failed to create source file: %v", err)
+	}
+	err = ioutil.WriteFile(duplicateFile, content, 0644)
+	if err != nil {
+		t.Fatalf("Failed to create duplicate file: %v", err)
+	}
+	err = ioutil.WriteFile(differentFile, []byte("different content"), 0644)
+	if err != nil {
+		t.Fatalf("Failed to create different file: %v", err)
+	}
+
+	fileInfo := &FileInfo{
+		SourceName: "source.txt",
+		SourceDir:  tempDir,
+		Size:       int64(len(content)),
+	}
+
+	tests := []struct {
+		destPath         string
+		autoRenameUnique bool
+		expected         bool
+	}{
+		{duplicateFile, true, true},
+		{duplicateFile, false, true},
+		{differentFile, true, false},
+		{differentFile, false, false}, // Changed this to false
+	}
+
+	for _, tt := range tests {
+		result := isDuplicate(fileInfo, tt.destPath, tt.autoRenameUnique)
+		if result != tt.expected {
+			t.Errorf("isDuplicate(%s, %v) = %v, expected %v", tt.destPath, tt.autoRenameUnique, result, tt.expected)
+		}
+	}
+}
+
+func TestCalculateCRC32(t *testing.T) {
+	tempDir, err := ioutil.TempDir("", "test")
+	if err != nil {
+		t.Fatalf("Failed to create temporary directory: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	testFile := filepath.Join(tempDir, "test.txt")
+	content := []byte("test content")
+	err = ioutil.WriteFile(testFile, content, 0644)
+	if err != nil {
+		t.Fatalf("Failed to create test file: %v", err)
+	}
+
+	checksum, err := calculateCRC32(testFile)
+	if err != nil {
+		t.Errorf("calculateCRC32 failed: %v", err)
+	}
+
+	expectedChecksum := "57f4675d"
+	if checksum != expectedChecksum {
+		t.Errorf("Expected checksum %s, but got %s", expectedChecksum, checksum)
+	}
+
+	// Test with non-existent file
+	_, err = calculateCRC32(filepath.Join(tempDir, "non-existent.txt"))
+	if err == nil {
+		t.Error("Expected error for non-existent file, but got none")
+	}
+}

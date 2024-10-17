@@ -6,6 +6,7 @@ import (
 )
 
 type FileType string
+type MediaCategory string
 
 const (
 	// Processed Picture Types
@@ -44,94 +45,50 @@ const (
 
 	// Raw Video Types
 	RAWVIDEO FileType = "rawvideo"
-)
 
-type MediaCategory string
-
-const (
+	// Media Categories
 	ProcessedPicture MediaCategory = "processed_picture"
 	RawPicture       MediaCategory = "raw_picture"
 	Video            MediaCategory = "video"
 	RawVideo         MediaCategory = "raw_video"
 )
 
-var fileExtensionToFileType = map[string]FileType{
-	// Processed Picture Types
-	"jpg": JPEG, "jpeg": JPEG, "jpe": JPEG, "jif": JPEG, "jfif": JPEG, "jfi": JPEG,
-	"jp2": JPEG2000, "j2k": JPEG2000, "jpf": JPEG2000, "jpm": JPEG2000, "jpg2": JPEG2000, "j2c": JPEG2000, "jpc": JPEG2000, "jpx": JPEG2000, "mj2": JPEG2000,
-	"jxl":  JPEGXL,
-	"png":  PNG,
-	"gif":  GIF,
-	"bmp":  BMP,
-	"tiff": TIFF, "tif": TIFF,
-	"psd":  PSD,
-	"eps":  EPS,
-	"svg":  SVG,
-	"ico":  ICO,
-	"webp": WEBP,
-	"heif": HEIF, "heifs": HEIF, "heic": HEIF, "heics": HEIF, "avci": HEIF, "avcs": HEIF, "hif": HEIF,
-
-	// Raw Picture Types
-	"arw": RAW, "cr2": RAW, "cr3": RAW, "crw": RAW, "dng": RAW, "erf": RAW, "kdc": RAW, "mrw": RAW,
-	"nef": RAW, "orf": RAW, "pef": RAW, "raf": RAW, "raw": RAW, "rw2": RAW, "sr2": RAW, "srf": RAW, "x3f": RAW,
-
-	// Video Types
-	"mp4":  MP4,
-	"avi":  AVI,
-	"mov":  MOV,
-	"wmv":  WMV,
-	"flv":  FLV,
-	"mkv":  MKV,
-	"webm": WEBM,
-	"ogv":  OGV,
-	"m4v":  M4V,
-	"3gp":  THREEGP,
-	"3g2":  THREEG2,
-	"asf":  ASF,
-	"vob":  VOB,
-	"mts":  MTS, "m2ts": MTS,
-
-	// Raw Video Types
-	"braw": RAWVIDEO, "r3d": RAWVIDEO, "ari": RAWVIDEO,
+type FileTypeInfo struct {
+	FileType      FileType
+	MediaCategory MediaCategory
+	Extensions    []string
 }
 
-var fileTypeToMediaCategory = map[FileType]MediaCategory{
-	// Processed Picture Types
-	JPEG:     ProcessedPicture,
-	JPEG2000: ProcessedPicture,
-	JPEGXL:   ProcessedPicture,
-	PNG:      ProcessedPicture,
-	GIF:      ProcessedPicture,
-	BMP:      ProcessedPicture,
-	TIFF:     ProcessedPicture,
-	PSD:      ProcessedPicture,
-	EPS:      ProcessedPicture,
-	SVG:      ProcessedPicture,
-	ICO:      ProcessedPicture,
-	WEBP:     ProcessedPicture,
-	HEIF:     ProcessedPicture,
-
-	// Raw Picture Types
-	RAW: RawPicture,
-
-	// Video Types
-	MP4:     Video,
-	AVI:     Video,
-	MOV:     Video,
-	WMV:     Video,
-	FLV:     Video,
-	MKV:     Video,
-	WEBM:    Video,
-	OGV:     Video,
-	M4V:     Video,
-	THREEGP: Video,
-	THREEG2: Video,
-	ASF:     Video,
-	VOB:     Video,
-	MTS:     Video,
-
-	// Raw Video Types
-	RAWVIDEO: RawVideo,
+var fileTypes = []FileTypeInfo{
+	{JPEG, ProcessedPicture, []string{"jpg", "jpeg", "jpe", "jif", "jfif", "jfi"}},
+	{JPEG2000, ProcessedPicture, []string{"jp2", "j2k", "jpf", "jpm", "jpg2", "j2c", "jpc", "jpx", "mj2"}},
+	{JPEGXL, ProcessedPicture, []string{"jxl"}},
+	{PNG, ProcessedPicture, []string{"png"}},
+	{GIF, ProcessedPicture, []string{"gif"}},
+	{BMP, ProcessedPicture, []string{"bmp"}},
+	{TIFF, ProcessedPicture, []string{"tiff", "tif"}},
+	{PSD, ProcessedPicture, []string{"psd"}},
+	{EPS, ProcessedPicture, []string{"eps"}},
+	{SVG, ProcessedPicture, []string{"svg"}},
+	{ICO, ProcessedPicture, []string{"ico"}},
+	{WEBP, ProcessedPicture, []string{"webp"}},
+	{HEIF, ProcessedPicture, []string{"heif", "heifs", "heic", "heics", "avci", "avcs", "hif"}},
+	{RAW, RawPicture, []string{"arw", "cr2", "cr3", "crw", "dng", "erf", "kdc", "mrw", "nef", "orf", "pef", "raf", "raw", "rw2", "sr2", "srf", "x3f"}},
+	{MP4, Video, []string{"mp4"}},
+	{AVI, Video, []string{"avi"}},
+	{MOV, Video, []string{"mov"}},
+	{WMV, Video, []string{"wmv"}},
+	{FLV, Video, []string{"flv"}},
+	{MKV, Video, []string{"mkv"}},
+	{WEBM, Video, []string{"webm"}},
+	{OGV, Video, []string{"ogv"}},
+	{M4V, Video, []string{"m4v"}},
+	{THREEGP, Video, []string{"3gp"}},
+	{THREEG2, Video, []string{"3g2"}},
+	{ASF, Video, []string{"asf"}},
+	{VOB, Video, []string{"vob"}},
+	{MTS, Video, []string{"mts", "m2ts"}},
+	{RAWVIDEO, RawVideo, []string{"braw", "r3d", "ari"}},
 }
 
 func getMediaTypeInfo(fi FileInfo) (MediaCategory, FileType) {
@@ -139,16 +96,24 @@ func getMediaTypeInfo(fi FileInfo) (MediaCategory, FileType) {
 	if ext == "" {
 		return "", ""
 	}
+	ext = ext[1:] // Remove the leading dot
 
-	fileType, ok := fileExtensionToFileType[ext[1:]] // Remove the leading dot
-	if !ok {
-		return "", ""
+	for _, ft := range fileTypes {
+		for _, e := range ft.Extensions {
+			if e == ext {
+				return ft.MediaCategory, ft.FileType
+			}
+		}
 	}
 
-	category, ok := fileTypeToMediaCategory[fileType]
-	if !ok {
-		return "", ""
-	}
+	return "", ""
+}
 
-	return category, fileType
+func getFirstExtensionForFileType(fileType FileType) string {
+	for _, ft := range fileTypes {
+		if ft.FileType == fileType && len(ft.Extensions) > 0 {
+			return ft.Extensions[0]
+		}
+	}
+	return ""
 }
