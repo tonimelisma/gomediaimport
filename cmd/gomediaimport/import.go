@@ -2,6 +2,8 @@ package main
 
 import (
 	"fmt"
+	"io"
+	"os"
 	"path/filepath"
 	"time"
 )
@@ -68,8 +70,117 @@ func importMedia(cfg config) error {
 		}
 	}
 
-	//fmt.Println(files[len(files)-1])
-	// TODO: Implement the actual media import logic here using the 'files' slice
+	// Copy files
+	if err := copyFiles(files, cfg); err != nil {
+		return fmt.Errorf("failed to copy files: %w", err)
+	}
+
+	// Enumerate file statuses if verbose
+	if cfg.Verbose {
+		var preExisting, failed, copied, total int
+		for _, file := range files {
+			total++
+			switch file.Status {
+			case "pre-existing":
+				preExisting++
+			case "failed":
+				failed++
+			case "copied":
+				copied++
+			}
+		}
+		fmt.Printf("\nFile status summary:\n")
+		fmt.Printf("Total files: %d\n", total)
+		fmt.Printf("Pre-existing: %d\n", preExisting)
+		fmt.Printf("Failed: %d\n", failed)
+		fmt.Printf("Copied: %d\n", copied)
+	}
 
 	return nil
+}
+
+func copyFiles(files []FileInfo, cfg config) error {
+	var totalSize int64
+	for _, file := range files {
+		if file.Status != "unnamable" && file.Status != "pre-existing" {
+			totalSize += file.Size
+		}
+	}
+
+	if cfg.Verbose {
+		fmt.Printf("Total size to copy: %s\n", humanReadableSize(totalSize))
+	}
+
+	var copiedSize int64
+	startTime := time.Now()
+
+	for i := range files {
+		if files[i].Status == "unnamable" || files[i].Status == "pre-existing" {
+			continue
+		}
+
+		// Create destination directory if it doesn't exist
+		if !cfg.DryRun {
+			if err := os.MkdirAll(files[i].DestDir, 0755); err != nil {
+				files[i].Status = "directory creation failed"
+				return fmt.Errorf("failed to create directory %s: %w", files[i].DestDir, err)
+			}
+
+			// Copy the file
+			if err := copyFile(files[i].SourceDir+"/"+files[i].SourceName, files[i].DestDir+"/"+files[i].DestName); err != nil {
+				files[i].Status = "failed"
+			} else {
+				files[i].Status = "copied"
+			}
+		}
+
+		copiedSize += files[i].Size
+
+		if cfg.Verbose {
+			progress := float64(copiedSize) / float64(totalSize)
+			elapsed := time.Since(startTime)
+			estimatedTotal := time.Duration(float64(elapsed) / progress)
+			remaining := estimatedTotal - elapsed
+
+			fmt.Printf("%s -> %s (%s, %.2f%%, ETA: %s)\n",
+				files[i].SourceDir+"/"+files[i].SourceName,
+				files[i].DestDir+"/"+files[i].DestName,
+				humanReadableSize(files[i].Size),
+				progress*100,
+				remaining.Round(time.Second),
+			)
+		}
+	}
+
+	return nil
+}
+
+func copyFile(src, dst string) error {
+	sourceFile, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer sourceFile.Close()
+
+	destFile, err := os.Create(dst)
+	if err != nil {
+		return err
+	}
+	defer destFile.Close()
+
+	_, err = io.Copy(destFile, sourceFile)
+	return err
+}
+
+func humanReadableSize(size int64) string {
+	const unit = 1024
+	if size < unit {
+		return fmt.Sprintf("%d B", size)
+	}
+	div, exp := int64(unit), 0
+	for n := size / unit; n >= unit; n /= unit {
+		div *= unit
+		exp++
+	}
+	return fmt.Sprintf("%.1f %cB", float64(size)/float64(div), "KMGTPE"[exp])
 }
