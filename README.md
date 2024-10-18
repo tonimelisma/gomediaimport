@@ -2,6 +2,7 @@
 Import pictures and videos from SD Cards automatically on macOS
 
 ## TODO
+* Remove duplicates in source folder
 * Change file extensions when renaming
 * Remove originals
 
