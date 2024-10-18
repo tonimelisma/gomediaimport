@@ -52,23 +52,22 @@ func importMedia(cfg config) error {
 			files[i].DestDir = cfg.DestDir
 		}
 
-		// Set destination filename and check for duplicates
+		// Determine initial filename
+		var initialFilename string
 		if cfg.RenameByDateTime {
-			if err := setDestinationFilename(&files[i], cfg); err != nil {
-				files[i].Status = "unnamable"
-				continue
-			}
+			initialFilename = files[i].CreationDateTime.Format("20060102_150405") + filepath.Ext(files[i].SourceName)
 		} else {
-			files[i].DestName = files[i].SourceName
-			fullDestPath := filepath.Join(files[i].DestDir, files[i].DestName)
-			if isDuplicate(&files[i], fullDestPath, cfg.AutoRenameUnique) {
-				files[i].Status = "pre-existing"
-				continue
-			}
+			initialFilename = files[i].SourceName
+		}
+
+		// Set final destination filename
+		if err := setFinalDestinationFilename(&files[i], initialFilename, cfg); err != nil {
+			files[i].Status = "unnamable"
+			continue
 		}
 	}
 
-	fmt.Println(files[len(files)-1])
+	//fmt.Println(files[len(files)-1])
 	// TODO: Implement the actual media import logic here using the 'files' slice
 
 	return nil

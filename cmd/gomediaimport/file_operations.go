@@ -76,25 +76,36 @@ func enumerateFiles(sourceDir string, skipThumbnails bool) ([]FileInfo, error) {
 	return files, nil
 }
 
-func setDestinationFilename(file *FileInfo, cfg config) error {
+func setFinalDestinationFilename(file *FileInfo, initialFilename string, cfg config) error {
 	baseDir := file.DestDir
-	baseFilename := file.CreationDateTime.Format("20060102_150405")
-	ext := getFirstExtensionForFileType(file.FileType)
+	ext := filepath.Ext(initialFilename)
+	baseFilename := strings.TrimSuffix(initialFilename, ext)
 
-	for i := 0; i <= 999; i++ {
-		suffix := fmt.Sprintf("%03d", i)
-		file.DestName = baseFilename + suffix + "." + ext
-		fullPath := filepath.Join(baseDir, file.DestName)
+	fullPath := filepath.Join(baseDir, initialFilename)
 
-		if exists(fullPath) {
-			if isDuplicate(file, fullPath, cfg.AutoRenameUnique) {
-				file.Status = "pre-existing"
-				return nil
-			} else {
-				continue
-			}
-		} else {
-			// Found a non-duplicate filename
+	if !exists(fullPath) {
+		file.DestName = initialFilename
+		return nil
+	}
+
+	if isDuplicate(file, fullPath, cfg.AutoRenameUnique) {
+		file.Status = "pre-existing"
+		file.DestName = initialFilename
+		return nil
+	}
+
+	for i := 1; i <= 999; i++ {
+		suffix := fmt.Sprintf("_%03d", i)
+		newFilename := baseFilename + suffix + ext
+		fullPath = filepath.Join(baseDir, newFilename)
+
+		if !exists(fullPath) {
+			file.DestName = newFilename
+			return nil
+		}
+
+		if !isDuplicate(file, fullPath, cfg.AutoRenameUnique) {
+			file.DestName = newFilename
 			return nil
 		}
 	}
@@ -131,14 +142,10 @@ func isDuplicate(file *FileInfo, destPath string, autoRenameUnique bool) bool {
 			return false
 		}
 
-		if srcChecksum == destChecksum {
-			return true
-		}
-	} else {
-		return true
+		return srcChecksum == destChecksum
 	}
 
-	return false
+	return true
 }
 
 func calculateCRC32(filepath string) (string, error) {
