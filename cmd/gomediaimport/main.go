@@ -5,8 +5,22 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/alexflint/go-arg"
 	"gopkg.in/yaml.v2"
 )
+
+// args holds the command-line arguments
+var args struct {
+	SourceDir        string `arg:"positional,required" help:"Source directory for media files"`
+	DestDir          string `arg:"--dest" help:"Destination directory for imported media"`
+	ConfigFile       string `arg:"--config" help:"Path to config file"`
+	OrganizeByDate   bool   `arg:"--organize-by-date" help:"Organize files by date"`
+	RenameByDateTime bool   `arg:"--rename-by-date-time" help:"Rename files by date and time"`
+	AutoRenameUnique bool   `arg:"--auto-rename-unique" help:"Automatically rename files to ensure uniqueness"`
+	Verbose          bool   `arg:"-v,--verbose" help:"Enable verbose output"`
+	DryRun           bool   `arg:"--dry-run" help:"Perform a dry run without making changes"`
+	SkipThumbnails   bool   `arg:"--skip-thumbnails" help:"Skip thumbnail generation"`
+}
 
 // config holds the application configuration
 type config struct {
@@ -16,6 +30,9 @@ type config struct {
 	OrganizeByDate   bool `yaml:"organize_by_date"`
 	RenameByDateTime bool `yaml:"rename_by_date_time"`
 	AutoRenameUnique bool `yaml:"auto_rename_unique"`
+	Verbose          bool `yaml:"verbose"`
+	DryRun           bool `yaml:"dry_run"`
+	SkipThumbnails   bool `yaml:"skip_thumbnails"`
 }
 
 // setDefaults initializes the config with default values
@@ -30,6 +47,9 @@ func setDefaults(cfg *config) error {
 	cfg.OrganizeByDate = false
 	cfg.RenameByDateTime = false
 	cfg.AutoRenameUnique = false
+	cfg.Verbose = false
+	cfg.DryRun = false
+	cfg.SkipThumbnails = false
 	return nil
 }
 
@@ -39,7 +59,6 @@ func parseConfigFile(cfg *config) error {
 	if err != nil {
 		if os.IsNotExist(err) {
 			// Config file doesn't exist, just return without an error
-			// DEBUG fmt.Println("Config file not found, using defaults")
 			return nil
 		}
 		return fmt.Errorf("failed to read config file: %v", err)
@@ -50,17 +69,6 @@ func parseConfigFile(cfg *config) error {
 		return fmt.Errorf("failed to parse config file: %v", err)
 	}
 
-	return nil
-}
-
-// parseArgs parses command-line arguments and updates the config struct.
-// It returns an error if there's an issue with parsing arguments.
-func parseArgs(cfg *config) error {
-	if len(os.Args) < 2 {
-		return fmt.Errorf("source directory is required as the first argument")
-	}
-
-	cfg.SourceDir = os.Args[1]
 	return nil
 }
 
@@ -86,10 +94,18 @@ func main() {
 	// Create an instance of the config struct
 	cfg := config{}
 
-	// Set default values
+	// Set default values first
 	if err := setDefaults(&cfg); err != nil {
 		fmt.Printf("Error setting defaults: %v\n", err)
 		return
+	}
+
+	// Parse command-line arguments
+	arg.MustParse(&args)
+
+	// Apply config file path from command-line argument if provided
+	if args.ConfigFile != "" {
+		cfg.ConfigFile = args.ConfigFile
 	}
 
 	// Parse configuration file
@@ -98,11 +114,30 @@ func main() {
 		return
 	}
 
-	// Parse command-line arguments and update the config
-	if err := parseArgs(&cfg); err != nil {
-		fmt.Printf("Error: %v\n", err)
-		fmt.Println("Usage: program <source-directory>")
-		return
+	// Override with command-line arguments
+	if args.SourceDir != "" {
+		cfg.SourceDir = args.SourceDir
+	}
+	if args.DestDir != "" {
+		cfg.DestDir = args.DestDir
+	}
+	if args.OrganizeByDate {
+		cfg.OrganizeByDate = args.OrganizeByDate
+	}
+	if args.RenameByDateTime {
+		cfg.RenameByDateTime = args.RenameByDateTime
+	}
+	if args.AutoRenameUnique {
+		cfg.AutoRenameUnique = args.AutoRenameUnique
+	}
+	if args.Verbose {
+		cfg.Verbose = args.Verbose
+	}
+	if args.DryRun {
+		cfg.DryRun = args.DryRun
+	}
+	if args.SkipThumbnails {
+		cfg.SkipThumbnails = args.SkipThumbnails
 	}
 
 	// Validate the configuration

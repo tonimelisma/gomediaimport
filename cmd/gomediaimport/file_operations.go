@@ -6,10 +6,11 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 // enumerateFiles scans the source directory and returns a list of FileInfo structs
-func enumerateFiles(sourceDir string) ([]FileInfo, error) {
+func enumerateFiles(sourceDir string, skipThumbnails bool) ([]FileInfo, error) {
 	var files []FileInfo
 
 	// Check if the source directory exists
@@ -25,6 +26,14 @@ func enumerateFiles(sourceDir string) ([]FileInfo, error) {
 	err = filepath.Walk(sourceDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return fmt.Errorf("error accessing path %q: %w", path, err)
+		}
+
+		// Skip directories and files containing "THMBNL" if skipThumbnails is true
+		if skipThumbnails && strings.Contains(path, "THMBNL") {
+			if info.IsDir() {
+				return filepath.SkipDir
+			}
+			return nil
 		}
 
 		// Skip directories

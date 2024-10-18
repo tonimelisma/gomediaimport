@@ -105,31 +105,6 @@ organize_by_date: not_a_bool
 	}
 }
 
-// TestParseArgs tests the parseArgs function
-func TestParseArgs(t *testing.T) {
-	// Test with valid source directory argument
-	oldArgs := os.Args
-	defer func() { os.Args = oldArgs }()
-
-	os.Args = []string{"cmd", "/path/to/source"}
-	cfg := &config{}
-	err := parseArgs(cfg)
-	if err != nil {
-		t.Fatalf("parseArgs failed: %v", err)
-	}
-	if cfg.SourceDir != "/path/to/source" {
-		t.Errorf("Expected SourceDir to be /path/to/source, got %s", cfg.SourceDir)
-	}
-
-	// Test with missing source directory argument
-	os.Args = []string{"cmd"}
-	cfg = &config{}
-	err = parseArgs(cfg)
-	if err == nil {
-		t.Fatalf("parseArgs should return error for missing source directory")
-	}
-}
-
 // TestValidateConfig tests the validateConfig function
 func TestValidateConfig(t *testing.T) {
 	// Test with valid config

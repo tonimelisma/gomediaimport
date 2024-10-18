@@ -23,20 +23,25 @@ type FileInfo struct {
 
 // importMedia handles the main functionality of the program
 func importMedia(cfg config) error {
-	fmt.Println("Source directory:", cfg.SourceDir)
-	fmt.Println("Destination directory:", cfg.DestDir)
-	fmt.Println("Organize by date:", cfg.OrganizeByDate)
-	fmt.Println("Rename by date and time:", cfg.RenameByDateTime)
-	fmt.Println("Auto rename unique files:", cfg.AutoRenameUnique)
+	if cfg.Verbose {
+		fmt.Println("Source directory:", cfg.SourceDir)
+		fmt.Println("Destination directory:", cfg.DestDir)
+		fmt.Println("Organize by date:", cfg.OrganizeByDate)
+		fmt.Println("Rename by date and time:", cfg.RenameByDateTime)
+		fmt.Println("Auto rename unique files:", cfg.AutoRenameUnique)
+		fmt.Println("Skip thumbnails:", cfg.SkipThumbnails)
+	}
 
 	// Enumerate files in the source directory
-	files, err := enumerateFiles(cfg.SourceDir)
+	files, err := enumerateFiles(cfg.SourceDir, cfg.SkipThumbnails)
 	if err != nil {
 		return fmt.Errorf("failed to enumerate files: %w", err)
 	}
 
 	// Print the number of files enumerated
-	fmt.Printf("Number of files enumerated: %d\n", len(files))
+	if cfg.Verbose {
+		fmt.Printf("Number of files enumerated: %d\n", len(files))
+	}
 
 	// Process each file
 	for i := range files {
@@ -63,6 +68,7 @@ func importMedia(cfg config) error {
 		}
 	}
 
+	fmt.Println(files[len(files)-1])
 	// TODO: Implement the actual media import logic here using the 'files' slice
 
 	return nil

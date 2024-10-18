@@ -3,11 +3,13 @@ module github.com/tonimelisma/gomediaimport
 go 1.22.0
 
 require (
+	github.com/alexflint/go-arg v1.5.1
 	github.com/evanoberholster/imagemeta v0.3.1
 	gopkg.in/yaml.v2 v2.4.0
 )
 
 require (
+	github.com/alexflint/go-scalar v1.2.0 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.17 // indirect
 	github.com/philhofer/fwd v1.1.2 // indirect
