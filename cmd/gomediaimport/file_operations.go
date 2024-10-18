@@ -76,14 +76,15 @@ func enumerateFiles(sourceDir string, skipThumbnails bool) ([]FileInfo, error) {
 	return files, nil
 }
 
-func setFinalDestinationFilename(file *FileInfo, initialFilename string, cfg config) error {
+func setFinalDestinationFilename(files *[]FileInfo, currentIndex int, initialFilename string, cfg config) error {
+	file := &(*files)[currentIndex]
 	baseDir := file.DestDir
 	ext := filepath.Ext(initialFilename)
 	baseFilename := strings.TrimSuffix(initialFilename, ext)
 
 	fullPath := filepath.Join(baseDir, initialFilename)
 
-	if !exists(fullPath) {
+	if !exists(fullPath) && !isNameTakenByPreviousFile(files, currentIndex, initialFilename) {
 		file.DestName = initialFilename
 		return nil
 	}
@@ -99,7 +100,7 @@ func setFinalDestinationFilename(file *FileInfo, initialFilename string, cfg con
 		newFilename := baseFilename + suffix + ext
 		fullPath = filepath.Join(baseDir, newFilename)
 
-		if !exists(fullPath) {
+		if !exists(fullPath) && !isNameTakenByPreviousFile(files, currentIndex, newFilename) {
 			file.DestName = newFilename
 			return nil
 		}
@@ -112,6 +113,15 @@ func setFinalDestinationFilename(file *FileInfo, initialFilename string, cfg con
 	}
 
 	return fmt.Errorf("couldn't find a unique filename after 1000 attempts")
+}
+
+func isNameTakenByPreviousFile(files *[]FileInfo, currentIndex int, proposedName string) bool {
+	for i := 0; i < currentIndex; i++ {
+		if (*files)[i].DestDir == (*files)[currentIndex].DestDir && (*files)[i].DestName == proposedName {
+			return true
+		}
+	}
+	return false
 }
 
 func exists(destPath string) bool {

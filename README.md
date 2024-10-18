@@ -2,10 +2,8 @@
 Import pictures and videos from SD Cards automatically on macOS
 
 ## TODO
-* Actual copy functionality, idempotent
+* Change file extensions when renaming
 * Remove originals
-* Progress bar
-* Status report (pre-existing, copied, errors)
 
 ### Roadmap
 * Logging

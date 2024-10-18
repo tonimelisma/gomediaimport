@@ -65,7 +65,7 @@ func importMedia(cfg config) error {
 		}
 
 		// Set final destination filename
-		if err := setFinalDestinationFilename(&files[i], initialFilename, cfg); err != nil {
+		if err := setFinalDestinationFilename(&files, i, initialFilename, cfg); err != nil {
 			files[i].Status = "unnamable"
 			continue
 		}
