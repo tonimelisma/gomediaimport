@@ -104,7 +104,8 @@ func setFinalDestinationFilename(file *FileInfo, initialFilename string, cfg con
 			return nil
 		}
 
-		if !isDuplicate(file, fullPath, cfg.ChecksumDuplicates) {
+		if isDuplicate(file, fullPath, cfg.ChecksumDuplicates) {
+			file.Status = "pre-existing"
 			file.DestName = newFilename
 			return nil
 		}
