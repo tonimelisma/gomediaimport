@@ -88,22 +88,24 @@ func TestSetFinalDestinationFilename(t *testing.T) {
 		ChecksumDuplicates: true,
 	}
 
-	file := &FileInfo{
-		SourceName:       "test.jpg",
-		DestDir:          tempDir,
-		CreationDateTime: time.Date(2023, 5, 1, 10, 30, 0, 0, time.UTC),
-		FileType:         JPEG,
+	files := []FileInfo{
+		{
+			SourceName:       "test.jpg",
+			DestDir:          tempDir,
+			CreationDateTime: time.Date(2023, 5, 1, 10, 30, 0, 0, time.UTC),
+			FileType:         JPEG,
+		},
 	}
 
 	initialFilename := "20230501_103000.jpg"
 
-	err = setFinalDestinationFilename(file, initialFilename, cfg)
+	err = setFinalDestinationFilename(&files, 0, initialFilename, cfg)
 	if err != nil {
 		t.Errorf("setFinalDestinationFilename failed: %v", err)
 	}
 
-	if file.DestName != initialFilename {
-		t.Errorf("Expected destination name %s, but got %s", initialFilename, file.DestName)
+	if files[0].DestName != initialFilename {
+		t.Errorf("Expected destination name %s, but got %s", initialFilename, files[0].DestName)
 	}
 
 	// Test with existing file
@@ -112,14 +114,14 @@ func TestSetFinalDestinationFilename(t *testing.T) {
 		t.Fatalf("Failed to create test file: %v", err)
 	}
 
-	err = setFinalDestinationFilename(file, initialFilename, cfg)
+	err = setFinalDestinationFilename(&files, 0, initialFilename, cfg)
 	if err != nil {
 		t.Errorf("setFinalDestinationFilename failed: %v", err)
 	}
 
 	expectedName := "20230501_103000_001.jpg"
-	if file.DestName != expectedName {
-		t.Errorf("Expected destination name %s, but got %s", expectedName, file.DestName)
+	if files[0].DestName != expectedName {
+		t.Errorf("Expected destination name %s, but got %s", expectedName, files[0].DestName)
 	}
 }
 
