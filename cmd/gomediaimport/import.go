@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -142,13 +143,14 @@ func copyFiles(files []FileInfo, cfg config) error {
 			estimatedTotal := time.Duration(float64(elapsed) / progress)
 			remaining := estimatedTotal - elapsed
 
-			fmt.Printf("%s -> %s (%s/%s, %.2f%%, ETA: %s)\n",
+			fmt.Printf("%s -> %s (%s/%s, %.2f%%, %s/%s)\n",
 				files[i].SourceDir+"/"+files[i].SourceName,
 				files[i].DestDir+"/"+files[i].DestName,
 				humanReadableSize(copiedSize),
 				humanReadableSize(totalSize),
 				progress*100,
-				remaining.Round(time.Second),
+				humanReadableDuration(remaining),
+				humanReadableDuration(estimatedTotal),
 			)
 		}
 	}
@@ -184,4 +186,27 @@ func humanReadableSize(size int64) string {
 		exp++
 	}
 	return fmt.Sprintf("%.1f %cB", float64(size)/float64(div), "KMGTPE"[exp])
+}
+
+func humanReadableDuration(d time.Duration) string {
+	days := int(d.Hours()) / 24
+	hours := int(d.Hours()) % 24
+	minutes := int(d.Minutes()) % 60
+	seconds := int(d.Seconds()) % 60
+
+	parts := []string{}
+	if days > 0 {
+		parts = append(parts, fmt.Sprintf("%dd", days))
+	}
+	if hours > 0 {
+		parts = append(parts, fmt.Sprintf("%dh", hours))
+	}
+	if minutes > 0 {
+		parts = append(parts, fmt.Sprintf("%dm", minutes))
+	}
+	if seconds > 0 || len(parts) == 0 {
+		parts = append(parts, fmt.Sprintf("%ds", seconds))
+	}
+
+	return strings.Join(parts, "")
 }
