@@ -11,28 +11,30 @@ import (
 
 // args holds the command-line arguments
 var args struct {
-	SourceDir        string `arg:"positional,required" help:"Source directory for media files"`
-	DestDir          string `arg:"--dest" help:"Destination directory for imported media"`
-	ConfigFile       string `arg:"--config" help:"Path to config file"`
-	OrganizeByDate   bool   `arg:"--organize-by-date" help:"Organize files by date"`
-	RenameByDateTime bool   `arg:"--rename-by-date-time" help:"Rename files by date and time"`
-	AutoRenameUnique bool   `arg:"--auto-rename-unique" help:"Automatically rename files to ensure uniqueness"`
-	Verbose          bool   `arg:"-v,--verbose" help:"Enable verbose output"`
-	DryRun           bool   `arg:"--dry-run" help:"Perform a dry run without making changes"`
-	SkipThumbnails   bool   `arg:"--skip-thumbnails" help:"Skip thumbnail generation"`
+	SourceDir          string `arg:"positional,required" help:"Source directory for media files"`
+	DestDir            string `arg:"--dest" help:"Destination directory for imported media"`
+	ConfigFile         string `arg:"--config" help:"Path to config file"`
+	OrganizeByDate     bool   `arg:"--organize-by-date" help:"Organize files by date"`
+	RenameByDateTime   bool   `arg:"--rename-by-date-time" help:"Rename files by date and time"`
+	ChecksumDuplicates bool   `arg:"--checksum-duplicates" help:"Use checksums to identify duplicates"`
+	ChecksumImports    bool   `arg:"--checksum-imports" help:"Calculate checksums for imported files"`
+	Verbose            bool   `arg:"-v,--verbose" help:"Enable verbose output"`
+	DryRun             bool   `arg:"--dry-run" help:"Perform a dry run without making changes"`
+	SkipThumbnails     bool   `arg:"--skip-thumbnails" help:"Skip thumbnail generation"`
 }
 
 // config holds the application configuration
 type config struct {
-	SourceDir        string `yaml:"source_directory"`
-	DestDir          string `yaml:"destination_directory"`
-	ConfigFile       string
-	OrganizeByDate   bool `yaml:"organize_by_date"`
-	RenameByDateTime bool `yaml:"rename_by_date_time"`
-	AutoRenameUnique bool `yaml:"auto_rename_unique"`
-	Verbose          bool `yaml:"verbose"`
-	DryRun           bool `yaml:"dry_run"`
-	SkipThumbnails   bool `yaml:"skip_thumbnails"`
+	SourceDir          string `yaml:"source_directory"`
+	DestDir            string `yaml:"destination_directory"`
+	ConfigFile         string
+	OrganizeByDate     bool `yaml:"organize_by_date"`
+	RenameByDateTime   bool `yaml:"rename_by_date_time"`
+	ChecksumDuplicates bool `yaml:"checksum_duplicates"`
+	ChecksumImports    bool `yaml:"checksum_imports"`
+	Verbose            bool `yaml:"verbose"`
+	DryRun             bool `yaml:"dry_run"`
+	SkipThumbnails     bool `yaml:"skip_thumbnails"`
 }
 
 // setDefaults initializes the config with default values
@@ -46,7 +48,8 @@ func setDefaults(cfg *config) error {
 	cfg.ConfigFile = filepath.Join(homeDir, ".gomediaimportrc")
 	cfg.OrganizeByDate = false
 	cfg.RenameByDateTime = false
-	cfg.AutoRenameUnique = false
+	cfg.ChecksumDuplicates = false
+	cfg.ChecksumImports = false
 	cfg.Verbose = false
 	cfg.DryRun = false
 	cfg.SkipThumbnails = false
@@ -127,8 +130,11 @@ func main() {
 	if args.RenameByDateTime {
 		cfg.RenameByDateTime = args.RenameByDateTime
 	}
-	if args.AutoRenameUnique {
-		cfg.AutoRenameUnique = args.AutoRenameUnique
+	if args.ChecksumDuplicates {
+		cfg.ChecksumDuplicates = args.ChecksumDuplicates
+	}
+	if args.ChecksumImports {
+		cfg.ChecksumImports = args.ChecksumImports
 	}
 	if args.Verbose {
 		cfg.Verbose = args.Verbose

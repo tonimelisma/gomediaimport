@@ -88,7 +88,7 @@ func setFinalDestinationFilename(file *FileInfo, initialFilename string, cfg con
 		return nil
 	}
 
-	if isDuplicate(file, fullPath, cfg.AutoRenameUnique) {
+	if isDuplicate(file, fullPath, cfg.ChecksumDuplicates) {
 		file.Status = "pre-existing"
 		file.DestName = initialFilename
 		return nil
@@ -104,7 +104,7 @@ func setFinalDestinationFilename(file *FileInfo, initialFilename string, cfg con
 			return nil
 		}
 
-		if !isDuplicate(file, fullPath, cfg.AutoRenameUnique) {
+		if !isDuplicate(file, fullPath, cfg.ChecksumDuplicates) {
 			file.DestName = newFilename
 			return nil
 		}
@@ -118,7 +118,7 @@ func exists(destPath string) bool {
 	return !os.IsNotExist(err)
 }
 
-func isDuplicate(file *FileInfo, destPath string, autoRenameUnique bool) bool {
+func isDuplicate(file *FileInfo, destPath string, checksumDuplicates bool) bool {
 	destInfo, err := os.Stat(destPath)
 	if os.IsNotExist(err) {
 		return false
@@ -128,7 +128,7 @@ func isDuplicate(file *FileInfo, destPath string, autoRenameUnique bool) bool {
 		return false
 	}
 
-	if autoRenameUnique {
+	if checksumDuplicates {
 		srcChecksum, err := calculateCRC32(filepath.Join(file.SourceDir, file.SourceName))
 		if err != nil {
 			// Handle error (e.g., log it)

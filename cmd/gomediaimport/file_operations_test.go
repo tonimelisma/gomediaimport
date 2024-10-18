@@ -84,8 +84,8 @@ func TestSetFinalDestinationFilename(t *testing.T) {
 	defer os.RemoveAll(tempDir)
 
 	cfg := config{
-		DestDir:          tempDir,
-		AutoRenameUnique: true,
+		DestDir:            tempDir,
+		ChecksumDuplicates: true,
 	}
 
 	file := &FileInfo{
@@ -156,9 +156,9 @@ func TestIsDuplicate(t *testing.T) {
 	}
 
 	tests := []struct {
-		destPath         string
-		autoRenameUnique bool
-		expected         bool
+		destPath           string
+		checksumDuplicates bool
+		expected           bool
 	}{
 		{duplicateFile, true, true},
 		{duplicateFile, false, true},
@@ -167,9 +167,9 @@ func TestIsDuplicate(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		result := isDuplicate(fileInfo, tt.destPath, tt.autoRenameUnique)
+		result := isDuplicate(fileInfo, tt.destPath, tt.checksumDuplicates)
 		if result != tt.expected {
-			t.Errorf("isDuplicate(%s, %v) = %v, expected %v", tt.destPath, tt.autoRenameUnique, result, tt.expected)
+			t.Errorf("isDuplicate(%s, %v) = %v, expected %v", tt.destPath, tt.checksumDuplicates, result, tt.expected)
 		}
 	}
 }

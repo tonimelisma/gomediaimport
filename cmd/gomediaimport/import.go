@@ -28,7 +28,8 @@ func importMedia(cfg config) error {
 		fmt.Println("Destination directory:", cfg.DestDir)
 		fmt.Println("Organize by date:", cfg.OrganizeByDate)
 		fmt.Println("Rename by date and time:", cfg.RenameByDateTime)
-		fmt.Println("Auto rename unique files:", cfg.AutoRenameUnique)
+		fmt.Println("Checksum duplicates:", cfg.ChecksumDuplicates)
+		fmt.Println("Checksum imports:", cfg.ChecksumImports)
 		fmt.Println("Skip thumbnails:", cfg.SkipThumbnails)
 	}
 

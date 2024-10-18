@@ -34,8 +34,12 @@ func TestSetDefaults(t *testing.T) {
 		t.Errorf("Expected RenameByDateTime to be false, got %v", cfg.RenameByDateTime)
 	}
 
-	if cfg.AutoRenameUnique != false {
-		t.Errorf("Expected AutoRenameUnique to be false, got %v", cfg.AutoRenameUnique)
+	if cfg.ChecksumDuplicates != false {
+		t.Errorf("Expected ChecksumDuplicates to be false, got %v", cfg.ChecksumDuplicates)
+	}
+
+	if cfg.ChecksumImports != false {
+		t.Errorf("Expected ChecksumImports to be false, got %v", cfg.ChecksumImports)
 	}
 }
 
@@ -47,7 +51,8 @@ source_directory: /path/to/source
 destination_directory: /path/to/dest
 organize_by_date: true
 rename_by_date_time: true
-auto_rename_unique: true
+checksum_duplicates: true
+checksum_imports: true
 `
 	tmpfile, err := os.CreateTemp("", "config-*.yaml")
 	if err != nil {
@@ -176,11 +181,12 @@ func TestMain(t *testing.T) {
 // TestConfigMarshalUnmarshal tests the marshaling and unmarshaling of the config struct
 func TestConfigMarshalUnmarshal(t *testing.T) {
 	cfg := &config{
-		SourceDir:        "/path/to/source",
-		DestDir:          "/path/to/dest",
-		OrganizeByDate:   true,
-		RenameByDateTime: true,
-		AutoRenameUnique: true,
+		SourceDir:          "/path/to/source",
+		DestDir:            "/path/to/dest",
+		OrganizeByDate:     true,
+		RenameByDateTime:   true,
+		ChecksumDuplicates: true,
+		ChecksumImports:    true,
 	}
 
 	data, err := yaml.Marshal(cfg)
@@ -208,11 +214,12 @@ func TestConfigFilePermissions(t *testing.T) {
 	defer os.Remove(tmpfile.Name())
 
 	cfg := &config{
-		SourceDir:        "/path/to/source",
-		DestDir:          "/path/to/dest",
-		OrganizeByDate:   true,
-		RenameByDateTime: true,
-		AutoRenameUnique: true,
+		SourceDir:          "/path/to/source",
+		DestDir:            "/path/to/dest",
+		OrganizeByDate:     true,
+		RenameByDateTime:   true,
+		ChecksumDuplicates: true,
+		ChecksumImports:    true,
 	}
 
 	data, err := yaml.Marshal(cfg)
