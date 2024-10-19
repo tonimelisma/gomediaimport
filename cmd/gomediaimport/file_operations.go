@@ -25,12 +25,14 @@ func enumerateFiles(sourceDir string, skipThumbnails bool) ([]FileInfo, error) {
 	// Walk through the directory
 	err = filepath.Walk(sourceDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
+			if os.IsPermission(err) {
+				fmt.Printf("Warning: Permission denied accessing %s, skipping...\n", path)
+				if info != nil && info.IsDir() {
+					return filepath.SkipDir
+				}
+				return nil
+			}
 			return fmt.Errorf("error accessing path %q: %w", path, err)
-		}
-
-		// Skip .Spotlight-V100 and .fseventsd folders
-		if info.IsDir() && (info.Name() == ".Spotlight-V100" || info.Name() == ".fseventsd") {
-			return filepath.SkipDir
 		}
 
 		// Skip directories and files containing "THMBNL" if skipThumbnails is true
