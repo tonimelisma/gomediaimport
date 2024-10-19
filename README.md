@@ -105,7 +105,7 @@ gomediaimport supports a wide range of media file types, categorized as follows:
 
 ### Other formats
 
-gomediaimport uses the `github.com/evanoberholster/imagemeta` package for metadata extraction, but it's compatible with any media files matching the supported extensions. If you need support for additional file types, you can easily add them to the `media_types.go` file.
+gomediaimport uses the [github.com/evanoberholster/imagemeta](`github.com/evanoberholster/imagemeta`) package for metadata extraction, but it's compatible with any media files matching the supported extensions. If you need support for additional file types, you can easily add them to the `media_types.go` file.
 
 We welcome Pull Requests if you find any missing file types or have improvements to suggest!
 
