@@ -13,7 +13,7 @@ gomediaimport is a tool designed to automatically import pictures and videos fro
 ## Installation
 
 ```bash
-go install
+go install ./cmd/gomediaimport
 ```
 
 This will install gomediamport into your `~/go/bin` directory. Ensure it's in your PATH.
