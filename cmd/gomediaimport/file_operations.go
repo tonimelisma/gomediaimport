@@ -82,6 +82,13 @@ func setFinalDestinationFilename(files *[]FileInfo, currentIndex int, initialFil
 	ext := filepath.Ext(initialFilename)
 	baseFilename := strings.TrimSuffix(initialFilename, ext)
 
+	// Check for duplicates in previous files
+	if isDuplicateInPreviousFiles(files, currentIndex, cfg.ChecksumDuplicates) {
+		file.Status = "pre-existing"
+		file.DestName = initialFilename
+		return nil
+	}
+
 	fullPath := filepath.Join(baseDir, initialFilename)
 
 	if !exists(fullPath) && !isNameTakenByPreviousFile(files, currentIndex, initialFilename) {
@@ -113,6 +120,45 @@ func setFinalDestinationFilename(files *[]FileInfo, currentIndex int, initialFil
 	}
 
 	return fmt.Errorf("couldn't find a unique filename after 1000 attempts")
+}
+
+func isDuplicateInPreviousFiles(files *[]FileInfo, currentIndex int, checksumDuplicates bool) bool {
+	currentFile := &(*files)[currentIndex]
+
+	for i := 0; i < currentIndex; i++ {
+		previousFile := &(*files)[i]
+
+		if currentFile.CreationDateTime == previousFile.CreationDateTime && currentFile.Size == previousFile.Size {
+			if !checksumDuplicates {
+				return true
+			}
+
+			// Calculate and store checksums if needed
+			if currentFile.SourceChecksum == "" {
+				checksum, err := calculateCRC32(filepath.Join(currentFile.SourceDir, currentFile.SourceName))
+				if err != nil {
+					// Handle error (e.g., log it)
+					return false
+				}
+				currentFile.SourceChecksum = checksum
+			}
+
+			if previousFile.SourceChecksum == "" {
+				checksum, err := calculateCRC32(filepath.Join(previousFile.SourceDir, previousFile.SourceName))
+				if err != nil {
+					// Handle error (e.g., log it)
+					return false
+				}
+				previousFile.SourceChecksum = checksum
+			}
+
+			if currentFile.SourceChecksum == previousFile.SourceChecksum {
+				return true
+			}
+		}
+	}
+
+	return false
 }
 
 func isNameTakenByPreviousFile(files *[]FileInfo, currentIndex int, proposedName string) bool {
