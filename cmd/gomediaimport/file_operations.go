@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 // enumerateFiles scans the source directory and returns a list of FileInfo structs
@@ -230,4 +231,12 @@ func calculateCRC32(filepath string) (string, error) {
 	}
 
 	return fmt.Sprintf("%08x", hash.Sum32()), nil
+}
+
+func setFileTimes(path string, modTime time.Time) error {
+	// Set modification time only
+	if err := os.Chtimes(path, modTime, modTime); err != nil {
+		return fmt.Errorf("failed to set modification time: %w", err)
+	}
+	return nil
 }

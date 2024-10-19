@@ -137,6 +137,10 @@ func copyFiles(files []FileInfo, cfg config) error {
 			if err := copyFile(files[i].SourceDir+"/"+files[i].SourceName, files[i].DestDir+"/"+files[i].DestName); err != nil {
 				files[i].Status = "failed"
 			} else {
+				// Set file times
+				if err := setFileTimes(files[i].DestDir+"/"+files[i].DestName, files[i].CreationDateTime); err != nil {
+					fmt.Printf("Warning: Failed to set file times for %s: %v\n", files[i].DestDir+"/"+files[i].DestName, err)
+				}
 				files[i].Status = "copied"
 			}
 		}
@@ -162,6 +166,23 @@ func copyFiles(files []FileInfo, cfg config) error {
 	}
 
 	return nil
+}
+
+func copyFile(src, dst string) error {
+	sourceFile, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer sourceFile.Close()
+
+	destFile, err := os.Create(dst)
+	if err != nil {
+		return err
+	}
+	defer destFile.Close()
+
+	_, err = io.Copy(destFile, sourceFile)
+	return err
 }
 
 func deleteOriginalFiles(files []FileInfo, cfg config) error {
@@ -198,23 +219,6 @@ func deleteOriginalFiles(files []FileInfo, cfg config) error {
 	}
 
 	return nil
-}
-
-func copyFile(src, dst string) error {
-	sourceFile, err := os.Open(src)
-	if err != nil {
-		return err
-	}
-	defer sourceFile.Close()
-
-	destFile, err := os.Create(dst)
-	if err != nil {
-		return err
-	}
-	defer destFile.Close()
-
-	_, err = io.Copy(destFile, sourceFile)
-	return err
 }
 
 func humanReadableSize(size int64) string {
