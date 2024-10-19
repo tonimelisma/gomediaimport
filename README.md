@@ -1,12 +1,9 @@
 # goimportmedia
 Import pictures and videos from SD Cards automatically on macOS
 
-## TODO
-* Remove originals
-
-### Roadmap
-* Logging
+### TODO
 * Automatic start via Launch Agents
+* Handle metadata sidecar XML files for videos
+* Logging
 * Multithreading
-* Verify integrity before deletion
-* Settings for custom folder and file naming based on metadata
+* Verify integrity of all copied files

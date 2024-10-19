@@ -34,6 +34,7 @@ func importMedia(cfg config) error {
 		fmt.Println("Checksum duplicates:", cfg.ChecksumDuplicates)
 		fmt.Println("Checksum imports:", cfg.ChecksumImports)
 		fmt.Println("Skip thumbnails:", cfg.SkipThumbnails)
+		fmt.Println("Delete originals:", cfg.DeleteOriginals)
 	}
 
 	// Enumerate files in the source directory
@@ -74,6 +75,11 @@ func importMedia(cfg config) error {
 	// Copy files
 	if err := copyFiles(files, cfg); err != nil {
 		return fmt.Errorf("failed to copy files: %w", err)
+	}
+
+	// Delete original files if configured
+	if err := deleteOriginalFiles(files, cfg); err != nil {
+		return fmt.Errorf("failed to delete original files: %w", err)
 	}
 
 	// Enumerate file statuses if verbose
@@ -153,6 +159,42 @@ func copyFiles(files []FileInfo, cfg config) error {
 				humanReadableDuration(estimatedTotal),
 			)
 		}
+	}
+
+	return nil
+}
+
+func deleteOriginalFiles(files []FileInfo, cfg config) error {
+	if !cfg.DeleteOriginals {
+		return nil
+	}
+
+	var deletedCount int
+	var deletedSize int64
+
+	for _, file := range files {
+		if file.Status == "copied" || file.Status == "pre-existing" {
+			sourcePath := filepath.Join(file.SourceDir, file.SourceName)
+			if !cfg.DryRun {
+				err := os.Remove(sourcePath)
+				if err != nil {
+					if cfg.Verbose {
+						fmt.Printf("Failed to delete %s: %v\n", sourcePath, err)
+					}
+					continue
+				}
+			}
+			deletedCount++
+			deletedSize += file.Size
+			if cfg.Verbose {
+				fmt.Printf("Deleted original file: %s\n", sourcePath)
+			}
+		}
+	}
+
+	if cfg.Verbose {
+		fmt.Printf("\nOriginal files deleted: %d\n", deletedCount)
+		fmt.Printf("Total size of deleted files: %s\n", humanReadableSize(deletedSize))
 	}
 
 	return nil
