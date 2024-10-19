@@ -82,6 +82,17 @@ func setFinalDestinationFilename(files *[]FileInfo, currentIndex int, initialFil
 	ext := filepath.Ext(initialFilename)
 	baseFilename := strings.TrimSuffix(initialFilename, ext)
 
+	// If RenameByDateTime is set, use the new extension
+	if cfg.RenameByDateTime {
+		newExt := getFirstExtensionForFileType(file.FileType)
+		if newExt != "" {
+			ext = "." + newExt
+		}
+	}
+
+	// Reconstruct the initial filename with potentially new extension
+	initialFilename = baseFilename + ext
+
 	// Check for duplicates in previous files
 	if isDuplicateInPreviousFiles(files, currentIndex, cfg.ChecksumDuplicates) {
 		file.Status = "pre-existing"
