@@ -1,10 +1,10 @@
 # gomediaimport
 
-gomediaimport is a tool designed to automatically import pictures and videos from SD cards on macOS. It simplifies the process of managing and organizing your media files.
+gomediaimport is a tool designed to automatically import pictures and videos from SD cards or other volumes. It simplifies the process of managing and organizing your media files. It can automatically import media from inserted removable volumes on macOS.
 
 ## Features
 
-- Automatic import from SD cards
+- Automatic import from SD cards or other volumes
 - Configurable import settings
 - Support for various media file types
 - Optional file organization by date
@@ -147,6 +147,10 @@ Please remember to include unit tests that cover your contributions.
 ## License
 
 gomediaimport is released under the MIT License. See the [LICENSE](LICENSE) file for details.
+
+## Acknowledgements
+
+This software was designed by Toni Melisma and written by [Claude 3.5 Sonnet](https://claude.ai/) with the assistance of [continue.dev](https://continue.dev/) . Writing this program cost exactly $5.00 in LLM costs.
 
 ## Roadmap
 
