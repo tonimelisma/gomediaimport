@@ -21,6 +21,7 @@ var args struct {
 	Verbose            bool   `arg:"-v,--verbose" help:"Enable verbose output"`
 	DryRun             bool   `arg:"--dry-run" help:"Perform a dry run without making changes"`
 	SkipThumbnails     bool   `arg:"--skip-thumbnails" help:"Skip thumbnail generation"`
+	DeleteOriginals    bool   `arg:"--delete-originals" help:"Delete original files after successful import"`
 }
 
 // config holds the application configuration
@@ -35,6 +36,7 @@ type config struct {
 	Verbose            bool `yaml:"verbose"`
 	DryRun             bool `yaml:"dry_run"`
 	SkipThumbnails     bool `yaml:"skip_thumbnails"`
+	DeleteOriginals    bool `yaml:"delete_originals"`
 }
 
 // setDefaults initializes the config with default values
@@ -53,6 +55,7 @@ func setDefaults(cfg *config) error {
 	cfg.Verbose = false
 	cfg.DryRun = false
 	cfg.SkipThumbnails = false
+	cfg.DeleteOriginals = false
 	return nil
 }
 
@@ -144,6 +147,9 @@ func main() {
 	}
 	if args.SkipThumbnails {
 		cfg.SkipThumbnails = args.SkipThumbnails
+	}
+	if args.DeleteOriginals {
+		cfg.DeleteOriginals = args.DeleteOriginals
 	}
 
 	// Validate the configuration
