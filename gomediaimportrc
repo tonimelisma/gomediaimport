@@ -27,7 +27,7 @@ verbose: false
 # Perform a dry run without making changes
 dry_run: false
 
-# Skip thumbnail generation
+# Skip thumbnail import (e.g. video thumbnails)
 skip_thumbnails: false
 
 # Delete original files after successful import
