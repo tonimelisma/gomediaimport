@@ -23,8 +23,23 @@ This will install gomediamport into your `~/go/bin` directory. Ensure it's in yo
 ### Basic command-line usage
 
 ```bash
-gomediaimport /path/to/source/directory
+gomediaimport [--dest DEST] [--config CONFIG] [--organize-by-date]
+[--rename-by-date-time] [--checksum-duplicates] [--checksum-imports]
+[-v] [--dry-run] [--skip-thumbnails] [--delete-originals]
+SOURCE_DIR
 ```
+
+- `SOURCE_DIR`: Source directory for media files (required)
+- `--dest DEST`: Destination directory for imported media
+- `--config CONFIG`: Path to config file
+- `--organize-by-date`: Organize files by date
+- `--rename-by-date-time`: Rename files by date and time
+- `--checksum-duplicates`: Use checksums to identify duplicates (slow, otherwise uses size and date/time)
+- `--checksum-imports`: Calculate checksums for imported files (slow, otherwise uses size and date/time)
+- `-v, --verbose`: Enable verbose output
+- `--dry-run`: Perform a dry run without making changes
+- `--skip-thumbnails`: Skip thumbnails in source data (e.g. video thumbnails)
+- `--delete-originals`: Delete original files after successful import
 
 ### Examples
 
@@ -46,18 +61,6 @@ gomediaimport can be configured using a YAML configuration file. By default, the
 An example configuration file [`gomediaimportrc`](gomediaimportrc) is provided in the root of this repository. You can copy this file to `~/.gomediaimportrc` (or your preferred location) and modify it according to your needs.
 
 Note that command-line arguments will override settings in the configuration file.
-
-## Command-line Arguments
-
-- `--dest`: Destination directory for imported media
-- `--organize-by-date`: Organize files by date
-- `--rename-by-date-time`: Rename files by date and time
-- `--checksum-duplicates`: Use checksums to identify duplicates
-- `--checksum-imports`: Calculate checksums for imported files
-- `-v, --verbose`: Enable verbose output
-- `--dry-run`: Perform a dry run without making changes
-- `--skip-thumbnails`: Skip thumbnail generation
-- `--delete-originals`: Delete original files after successful import
 
 ## Supported File Types
 
