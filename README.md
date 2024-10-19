@@ -16,7 +16,7 @@ gomediaimport is a tool designed to automatically import pictures and videos fro
 go install
 ```
 
-This will install gomediamport into your ```~/go/bin``` directory. Ensure it's in your PATH.
+This will install gomediamport into your `~/go/bin` directory. Ensure it's in your PATH.
 
 ## Usage
 
@@ -43,7 +43,7 @@ gomediaimport --dry-run /Volumes/SD_CARD
 
 gomediaimport can be configured using a YAML configuration file. By default, the program looks for a configuration file at `~/.gomediaimportrc`, but you can specify a different path using the `--config` command-line option.
 
-An example configuration file [gomediaimportrc](`gomediaimportrc`) is provided in the root of this repository. You can copy this file to `~/.gomediaimportrc` (or your preferred location) and modify it according to your needs.
+An example configuration file [`gomediaimportrc`](gomediaimportrc) is provided in the root of this repository. You can copy this file to `~/.gomediaimportrc` (or your preferred location) and modify it according to your needs.
 
 Note that command-line arguments will override settings in the configuration file.
 
