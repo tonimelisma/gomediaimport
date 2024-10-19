@@ -110,7 +110,7 @@ gomediaimport uses the [github.com/evanoberholster/imagemeta](`github.com/evanob
 We welcome Pull Requests if you find any missing file types or have improvements to suggest!
 
 ## How It Works
-
+)
 gomediaimport is designed to efficiently import and organize media files. Here's an overview of its operation:
 
 1. **Configuration**: The program starts by loading configuration from a YAML file (default: `~/.gomediaimportrc`) and command-line arguments. The `setDefaults` function in `main.go` sets initial values, which can be overridden by the config file and CLI arguments.
@@ -153,7 +153,7 @@ gomediaimport is released under the MIT License. See the [LICENSE](LICENSE) file
 
 ## Acknowledgements
 
-This software was designed by Toni Melisma and written by [Claude 3.5 Sonnet](https://claude.ai/) with the assistance of [continue.dev](https://continue.dev/) . Writing this program cost exactly $5.00 in LLM costs.
+This software was designed by Toni Melisma and written by [Claude 3.5 Sonnet](https://claude.ai/) with the assistance of [continue.dev](https://continue.dev/). Writing this program cost exactly $5.00 in LLM costs.
 
 ## Roadmap
 
