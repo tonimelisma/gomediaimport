@@ -157,8 +157,8 @@ This software was designed by Toni Melisma and written by [Claude 3.5 Sonnet](ht
 
 ## Roadmap
 
-- Automatic start via Launch Agents
-- Handle metadata sidecar XML files for videos
+- Automatic start via Launch Agents on macOS
+- Handle metadata sidecar XML files for videos (copy with videos, delete originals after import)
 - Logging
 - Multithreading
 - Verify integrity of all copied files
