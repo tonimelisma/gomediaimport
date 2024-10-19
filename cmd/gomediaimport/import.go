@@ -149,12 +149,12 @@ func copyFiles(files []FileInfo, cfg config) error {
 			estimatedTotal := time.Duration(float64(elapsed) / progress)
 			remaining := estimatedTotal - elapsed
 
-			fmt.Printf("%s -> %s (%s/%s, %.2f%%, %s/%s)\n",
+			fmt.Printf("%s -> %s (%s/%s, %d%%, %s/%s)\n",
 				files[i].SourceDir+"/"+files[i].SourceName,
 				files[i].DestDir+"/"+files[i].DestName,
 				humanReadableSize(copiedSize),
 				humanReadableSize(totalSize),
-				progress*100,
+				int(progress*100),
 				humanReadableDuration(remaining),
 				humanReadableDuration(estimatedTotal),
 			)

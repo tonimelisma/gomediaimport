@@ -158,6 +158,7 @@ This software was designed by Toni Melisma and written by [Claude 3.5 Sonnet](ht
 ## Roadmap
 
 - Automatic start via Launch Agents on macOS
+- Handle multiple import directories
 - Handle metadata sidecar XML files for videos (copy with videos, delete originals after import)
 - Delete thumbnails after import
 - Logging

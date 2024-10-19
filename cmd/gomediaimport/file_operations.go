@@ -82,7 +82,6 @@ func setFinalDestinationFilename(files *[]FileInfo, currentIndex int, initialFil
 	ext := filepath.Ext(initialFilename)
 	baseFilename := strings.TrimSuffix(initialFilename, ext)
 
-	// If RenameByDateTime is set, use the new extension
 	if cfg.RenameByDateTime {
 		newExt := getFirstExtensionForFileType(file.FileType)
 		if newExt != "" {
@@ -90,10 +89,8 @@ func setFinalDestinationFilename(files *[]FileInfo, currentIndex int, initialFil
 		}
 	}
 
-	// Reconstruct the initial filename with potentially new extension
 	initialFilename = baseFilename + ext
 
-	// Check for duplicates in previous files
 	if isDuplicateInPreviousFiles(files, currentIndex, cfg.ChecksumDuplicates) {
 		file.Status = "pre-existing"
 		file.DestName = initialFilename
@@ -101,7 +98,6 @@ func setFinalDestinationFilename(files *[]FileInfo, currentIndex int, initialFil
 	}
 
 	fullPath := filepath.Join(baseDir, initialFilename)
-
 	if !exists(fullPath) && !isNameTakenByPreviousFile(files, currentIndex, initialFilename) {
 		file.DestName = initialFilename
 		return nil
@@ -113,16 +109,14 @@ func setFinalDestinationFilename(files *[]FileInfo, currentIndex int, initialFil
 		return nil
 	}
 
-	for i := 1; i <= 999; i++ {
-		suffix := fmt.Sprintf("_%03d", i)
+	for i := 1; i <= 999999; i++ {
+		suffix := fmt.Sprintf("_%d", i)
 		newFilename := baseFilename + suffix + ext
 		fullPath = filepath.Join(baseDir, newFilename)
-
 		if !exists(fullPath) && !isNameTakenByPreviousFile(files, currentIndex, newFilename) {
 			file.DestName = newFilename
 			return nil
 		}
-
 		if isDuplicate(file, fullPath, cfg.ChecksumDuplicates) {
 			file.Status = "pre-existing"
 			file.DestName = newFilename
@@ -130,7 +124,7 @@ func setFinalDestinationFilename(files *[]FileInfo, currentIndex int, initialFil
 		}
 	}
 
-	return fmt.Errorf("couldn't find a unique filename after 1000 attempts")
+	return fmt.Errorf("couldn't find a unique filename after 999,999 attempts")
 }
 
 func isDuplicateInPreviousFiles(files *[]FileInfo, currentIndex int, checksumDuplicates bool) bool {
