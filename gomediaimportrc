@@ -1,0 +1,34 @@
+# ~/.gomediaimportrc example
+# Copy this into your home directory to set defaults.
+# Configuration file defaults will always be overriden by command-line parameters.
+
+# Source directory for media files (required)
+source_directory: "/path/to/your/source/directory"
+
+# Destination directory for imported media
+# If not specified, defaults to ~/Pictures
+destination_directory: "/path/to/your/destination/directory"
+
+# Organize files by date
+organize_by_date: false
+
+# Rename files by date and time
+rename_by_date_time: false
+
+# Use checksums to identify duplicates
+checksum_duplicates: false
+
+# Calculate checksums for imported files
+checksum_imports: false
+
+# Enable verbose output
+verbose: false
+
+# Perform a dry run without making changes
+dry_run: false
+
+# Skip thumbnail generation
+skip_thumbnails: false
+
+# Delete original files after successful import
+delete_originals: false
