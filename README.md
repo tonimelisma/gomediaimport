@@ -62,6 +62,18 @@ An example configuration file [`gomediaimportrc`](gomediaimportrc) is provided i
 
 Note that command-line arguments will override settings in the configuration file.
 
+## Automatic macOS Launch
+
+You can automatically launch gomediaimport when a volume is inserted on macOS. You will need to install the separate `gomediaimport-launchagent` for that. It will keep a log of all inserted removable volumes, and run gomediaimport for each when they're inserted.
+
+To install and enable the macOS launch agent:
+* Open the separate Xcode project, build the binary and place it in your directory of choosing
+* Take the example file [net.melisma.gomediamport-launchagent.plist](gomediaimport-launchagent/net.melisma.gomediaimport-launchagent.plist) and copy it into `~/Library/Launch Agents`
+* Edit the file and change ProgramArguments to refer to the path you placed the binary in
+* Run `launchctl load ~/Library/LaunchAgents/net.melisma.gomediamport-launchagent.plist`
+
+You can `tail -f ~/.gomediaimport-launchagent.log` to see the log of inserted volumes.
+
 ## Supported File Types
 
 gomediaimport supports a wide range of media file types, categorized as follows:
@@ -164,14 +176,3 @@ This software was designed by Toni Melisma and written by [Claude 3.5 Sonnet](ht
 - Multithreading
 - Verify integrity of all copied files
 - Handle multiple import directories
-
-### GUI
-- Installer
-- For automatic imports: ask for each volume whether to import yes/no and whether to ask in future
-- For manual imports: choose volume to import from list
-- Progress bar
-- Pop-up or notification that import has begun
-- Pop-up or notification that import has finished
-- Settings window
-  - Set to automatically launch on new volumes (install Launch Agent)
-  - Change settings
