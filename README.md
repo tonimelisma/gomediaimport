@@ -156,12 +156,22 @@ gomediaimport is released under the MIT License. See the [LICENSE](LICENSE) file
 This software was designed by Toni Melisma and written by [Claude 3.5 Sonnet](https://claude.ai/) with the assistance of [continue.dev](https://continue.dev/). Writing this program cost exactly $5.00 in LLM costs.
 
 ## Roadmap
-
 - Automatic start via Launch Agents on macOS
 - Eject removable volume after import
-- Handle multiple import directories
 - Handle metadata sidecar XML files for videos (copy with videos, delete originals after import)
 - Delete thumbnails after import
 - Logging
 - Multithreading
 - Verify integrity of all copied files
+- Handle multiple import directories
+
+### GUI
+- Installer
+- For automatic imports: ask for each volume whether to import yes/no and whether to ask in future
+- For manual imports: choose volume to import from list
+- Progress bar
+- Pop-up or notification that import has begun
+- Pop-up or notification that import has finished
+- Settings window
+  - Set to automatically launch on new volumes (install Launch Agent)
+  - Change settings
