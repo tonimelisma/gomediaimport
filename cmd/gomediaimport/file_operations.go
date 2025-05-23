@@ -5,6 +5,7 @@ import (
 	"hash/crc32"
 	"io"
 	"os"
+	"os/exec" // Added for ejectDriveMacOS
 	"path/filepath"
 	"strings"
 	"time"
@@ -118,7 +119,7 @@ func setFinalDestinationFilename(files *[]FileInfo, currentIndex int, initialFil
 	}
 
 	for i := 1; i <= 999999; i++ {
-		suffix := fmt.Sprintf("_%d", i)
+		suffix := fmt.Sprintf("_%03d", i) // Ensure three-digit suffix
 		newFilename := baseFilename + suffix + ext
 		fullPath = filepath.Join(baseDir, newFilename)
 		if !exists(fullPath) && !isNameTakenByPreviousFile(files, currentIndex, newFilename) {
