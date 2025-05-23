@@ -40,6 +40,7 @@ SOURCE_DIR
 - `--dry-run`: Perform a dry run without making changes
 - `--skip-thumbnails`: Skip thumbnails in source data (e.g. video thumbnails)
 - `--delete-originals`: Delete original files after successful import
+- `--auto-eject-macos`: If set to `true` on macOS, the application will attempt to eject the source media/drive **only if all import operations (enumeration, copying, and optional deletion of originals) complete successfully**. This is useful for fully automating the import and eject cycle when connecting external media. Default is `false`.
 
 ### Examples
 
@@ -61,6 +62,8 @@ gomediaimport can be configured using a YAML configuration file. By default, the
 An example configuration file [`gomediaimportrc`](gomediaimportrc) is provided in the root of this repository. You can copy this file to `~/.gomediaimportrc` (or your preferred location) and modify it according to your needs.
 
 Note that command-line arguments will override settings in the configuration file.
+
+The corresponding configuration file option is `auto_eject_macos`.
 
 ## Automatic macOS Launch
 

@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 )
@@ -103,6 +104,19 @@ func importMedia(cfg config) error {
 		fmt.Printf("Copied: %d\n", copied)
 	}
 
+	// If we've reached this point, all main import operations were successful.
+	if cfg.AutoEjectMacOS && runtime.GOOS == "darwin" {
+		fmt.Printf("INFO: Import operations completed successfully. Attempting auto-eject for %s.\n", cfg.SourceDir)
+		ejectErr := ejectDriveMacOS(cfg.SourceDir)
+		if ejectErr != nil {
+			// Log the error but do not change the function's success return,
+			// as the import itself was successful.
+			fmt.Printf("WARNING: Failed to eject source drive %s after successful import: %v\n", cfg.SourceDir, ejectErr)
+		} else {
+			fmt.Printf("INFO: Successfully ejected source drive %s after successful import.\n", cfg.SourceDir)
+		}
+	}
+	// The function will then return nil, indicating overall success of importMedia.
 	return nil
 }
 

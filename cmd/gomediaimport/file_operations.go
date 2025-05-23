@@ -240,3 +240,19 @@ func setFileTimes(path string, modTime time.Time) error {
 	}
 	return nil
 }
+
+// ejectDriveMacOS attempts to eject the specified drive on macOS.
+// It prints messages to stdout regarding its progress.
+func ejectDriveMacOS(sourceDir string) error {
+	fmt.Printf("Attempting to eject drive: %s\n", sourceDir)
+
+	cmd := exec.Command("diskutil", "eject", sourceDir)
+	output, err := cmd.CombinedOutput() // Using CombinedOutput to capture stderr as well
+
+	if err != nil {
+		return fmt.Errorf("failed to eject drive %s: %v. Output: %s", sourceDir, err, string(output))
+	}
+
+	fmt.Printf("Successfully ejected drive: %s\nOutput: %s\n", sourceDir, string(output))
+	return nil
+}
