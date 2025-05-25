@@ -32,3 +32,6 @@ skip_thumbnails: false
 
 # Delete original files after successful import
 delete_originals: false
+
+# Automatically eject media after import on macOS (e.g., source drive)
+auto_eject_macos: false

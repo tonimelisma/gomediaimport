@@ -5,6 +5,7 @@ import (
 	"hash/crc32"
 	"io"
 	"os"
+	"os/exec" // Added for ejectDriveMacOS
 	"path/filepath"
 	"strings"
 	"time"
@@ -118,7 +119,7 @@ func setFinalDestinationFilename(files *[]FileInfo, currentIndex int, initialFil
 	}
 
 	for i := 1; i <= 999999; i++ {
-		suffix := fmt.Sprintf("_%d", i)
+		suffix := fmt.Sprintf("_%03d", i) // Ensure three-digit suffix
 		newFilename := baseFilename + suffix + ext
 		fullPath = filepath.Join(baseDir, newFilename)
 		if !exists(fullPath) && !isNameTakenByPreviousFile(files, currentIndex, newFilename) {
@@ -238,5 +239,21 @@ func setFileTimes(path string, modTime time.Time) error {
 	if err := os.Chtimes(path, modTime, modTime); err != nil {
 		return fmt.Errorf("failed to set modification time: %w", err)
 	}
+	return nil
+}
+
+// ejectDriveMacOS attempts to eject the specified drive on macOS.
+// It prints messages to stdout regarding its progress.
+func ejectDriveMacOS(sourceDir string) error {
+	fmt.Printf("Attempting to eject drive: %s\n", sourceDir)
+
+	cmd := exec.Command("diskutil", "eject", sourceDir)
+	output, err := cmd.CombinedOutput() // Using CombinedOutput to capture stderr as well
+
+	if err != nil {
+		return fmt.Errorf("failed to eject drive %s: %v. Output: %s", sourceDir, err, string(output))
+	}
+
+	fmt.Printf("Successfully ejected drive: %s\nOutput: %s\n", sourceDir, string(output))
 	return nil
 }

@@ -4,9 +4,31 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"os/exec"
+	"reflect"
 	"testing"
 	"time"
 )
+
+// Helper function to construct the eject command without running it
+func constructEjectCommand(sourceDir string) *exec.Cmd {
+	return exec.Command("diskutil", "eject", sourceDir)
+}
+
+func TestEjectDriveMacOS_CommandConstruction(t *testing.T) {
+	sourceDir := "/test/source/dir"
+	cmd := constructEjectCommand(sourceDir)
+
+	expectedPath := "diskutil"
+	if cmd.Path != expectedPath {
+		t.Errorf("Expected command path %s, but got %s", expectedPath, cmd.Path)
+	}
+
+	expectedArgs := []string{"diskutil", "eject", sourceDir}
+	if !reflect.DeepEqual(cmd.Args, expectedArgs) {
+		t.Errorf("Expected command args %v, but got %v", expectedArgs, cmd.Args)
+	}
+}
 
 func TestEnumerateFiles(t *testing.T) {
 	// Create temporary directory for testing

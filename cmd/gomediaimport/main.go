@@ -22,6 +22,7 @@ var args struct {
 	DryRun             bool   `arg:"--dry-run" help:"Perform a dry run without making changes"`
 	SkipThumbnails     bool   `arg:"--skip-thumbnails" help:"Skip thumbnail generation"`
 	DeleteOriginals    bool   `arg:"--delete-originals" help:"Delete original files after successful import"`
+	AutoEjectMacOS     bool   `arg:"--auto-eject-macos" help:"Automatically eject media after import on macOS (e.g., source drive)"`
 }
 
 // config holds the application configuration
@@ -37,6 +38,7 @@ type config struct {
 	DryRun             bool `yaml:"dry_run"`
 	SkipThumbnails     bool `yaml:"skip_thumbnails"`
 	DeleteOriginals    bool `yaml:"delete_originals"`
+	AutoEjectMacOS     bool `yaml:"auto_eject_macos"`
 }
 
 // setDefaults initializes the config with default values
@@ -56,6 +58,7 @@ func setDefaults(cfg *config) error {
 	cfg.DryRun = false
 	cfg.SkipThumbnails = false
 	cfg.DeleteOriginals = false
+	cfg.AutoEjectMacOS = false
 	return nil
 }
 
@@ -150,6 +153,9 @@ func main() {
 	}
 	if args.DeleteOriginals {
 		cfg.DeleteOriginals = args.DeleteOriginals
+	}
+	if args.AutoEjectMacOS {
+		cfg.AutoEjectMacOS = args.AutoEjectMacOS
 	}
 
 	// Validate the configuration
