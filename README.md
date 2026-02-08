@@ -16,7 +16,7 @@ gomediaimport is a tool designed to automatically import pictures and videos fro
 go install ./cmd/gomediaimport
 ```
 
-This will install gomediamport into your `~/go/bin` directory. Ensure it's in your PATH.
+This will install gomediaimport into your `~/go/bin` directory. Ensure it's in your PATH.
 
 ## Usage
 
@@ -24,8 +24,9 @@ This will install gomediamport into your `~/go/bin` directory. Ensure it's in yo
 
 ```bash
 gomediaimport [--dest DEST] [--config CONFIG] [--organize-by-date]
-[--rename-by-date-time] [--checksum-duplicates] [--checksum-imports]
+[--rename-by-date-time] [--checksum-duplicates]
 [-v] [--dry-run] [--skip-thumbnails] [--delete-originals]
+[--auto-eject-macos]
 SOURCE_DIR
 ```
 
@@ -35,7 +36,6 @@ SOURCE_DIR
 - `--organize-by-date`: Organize files by date
 - `--rename-by-date-time`: Rename files by date and time
 - `--checksum-duplicates`: Use checksums to identify duplicates (slow, otherwise uses size and date/time)
-- `--checksum-imports`: Calculate checksums for imported files (slow, otherwise uses size and date/time)
 - `-v, --verbose`: Enable verbose output
 - `--dry-run`: Perform a dry run without making changes
 - `--skip-thumbnails`: Skip thumbnails in source data (e.g. video thumbnails)
@@ -71,9 +71,9 @@ You can automatically launch gomediaimport when a volume is inserted on macOS. Y
 
 To install and enable the macOS launch agent:
 * Open the separate Xcode project, build the binary and place it in your directory of choosing
-* Take the example file [net.melisma.gomediamport-launchagent.plist](gomediaimport-launchagent/net.melisma.gomediaimport-launchagent.plist) and copy it into `~/Library/Launch Agents`
+* Take the example file [net.melisma.gomediaimport-launchagent.plist](gomediaimport-launchagent/net.melisma.gomediaimport-launchagent.plist) and copy it into `~/Library/Launch Agents`
 * Edit the file and change ProgramArguments to refer to the path you placed the binary in
-* Run `launchctl load ~/Library/LaunchAgents/net.melisma.gomediamport-launchagent.plist`
+* Run `launchctl load ~/Library/LaunchAgents/net.melisma.gomediaimport-launchagent.plist`
 
 You can `tail -f ~/.gomediaimport-launchagent.log` to see the log of inserted volumes.
 
@@ -125,7 +125,7 @@ gomediaimport uses the [github.com/evanoberholster/imagemeta](`github.com/evanob
 We welcome Pull Requests if you find any missing file types or have improvements to suggest!
 
 ## How It Works
-)
+
 gomediaimport is designed to efficiently import and organize media files. Here's an overview of its operation:
 
 1. **Configuration**: The program starts by loading configuration from a YAML file (default: `~/.gomediaimportrc`) and command-line arguments. The `setDefaults` function in `main.go` sets initial values, which can be overridden by the config file and CLI arguments.
@@ -172,7 +172,6 @@ This software was designed by Toni Melisma and written by [Claude 3.5 Sonnet](ht
 
 ## Roadmap
 - Don't prompt for source directory if defined in config file
-- Eject removable volume after import
 - Handle metadata sidecar XML files for videos (copy with videos, delete originals after import)
 - Delete thumbnails after import
 - Logging
