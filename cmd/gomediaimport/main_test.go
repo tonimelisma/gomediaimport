@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 
 	"gopkg.in/yaml.v2"
@@ -116,8 +117,9 @@ func TestValidateConfig(t *testing.T) {
 
 	destDir := filepath.Join(tmpDir, "dest")
 	cfg := &config{
-		SourceDir: tmpDir,
-		DestDir:   destDir,
+		SourceDir:      tmpDir,
+		DestDir:        destDir,
+		SidecarDefault: SidecarDelete,
 	}
 	err = validateConfig(cfg)
 	if err != nil {
@@ -157,8 +159,9 @@ func TestValidateConfigDestination(t *testing.T) {
 
 	// Dest parent doesn't exist
 	cfg := &config{
-		SourceDir: tmpDir,
-		DestDir:   "/non/existent/parent/dest",
+		SourceDir:      tmpDir,
+		DestDir:        "/non/existent/parent/dest",
+		SidecarDefault: SidecarDelete,
 	}
 	err = validateConfig(cfg)
 	if err == nil {
@@ -269,6 +272,8 @@ func TestConfigMarshalUnmarshal(t *testing.T) {
 		OrganizeByDate:     true,
 		RenameByDateTime:   true,
 		ChecksumDuplicates: true,
+		SidecarDefault:     SidecarDelete,
+		Sidecars:           map[string]SidecarAction{"xmp": SidecarCopy},
 	}
 
 	data, err := yaml.Marshal(cfg)
@@ -282,7 +287,7 @@ func TestConfigMarshalUnmarshal(t *testing.T) {
 		t.Fatalf("Failed to unmarshal config: %v", err)
 	}
 
-	if *cfg != *newCfg {
+	if !reflect.DeepEqual(cfg, newCfg) {
 		t.Errorf("Unmarshaled config does not match original: got %+v, want %+v", newCfg, cfg)
 	}
 }
@@ -462,6 +467,121 @@ func TestAutoEjectMacOSConfiguration(t *testing.T) {
 		}
 		if cfg.AutoEjectMacOS {
 			t.Errorf("Expected AutoEjectMacOS to be false (default), got true")
+		}
+	})
+}
+
+func TestSidecarConfigParsing(t *testing.T) {
+	createTempConfig := func(t *testing.T, content string) string {
+		t.Helper()
+		tmpfile, err := os.CreateTemp("", "config-sidecar-*.yaml")
+		if err != nil {
+			t.Fatalf("Failed to create temp file: %v", err)
+		}
+		if _, err := tmpfile.Write([]byte(content)); err != nil {
+			tmpfile.Close()
+			os.Remove(tmpfile.Name())
+			t.Fatalf("Failed to write to temp file: %v", err)
+		}
+		if err := tmpfile.Close(); err != nil {
+			os.Remove(tmpfile.Name())
+			t.Fatalf("Failed to close temp file: %v", err)
+		}
+		return tmpfile.Name()
+	}
+
+	t.Run("ParseSidecarDefault", func(t *testing.T) {
+		tmpFileName := createTempConfig(t, "sidecar_default: ignore")
+		defer os.Remove(tmpFileName)
+
+		cfg := &config{}
+		if err := setDefaults(cfg); err != nil {
+			t.Fatalf("setDefaults failed: %v", err)
+		}
+		cfg.ConfigFile = tmpFileName
+		if err := parseConfigFile(cfg); err != nil {
+			t.Fatalf("parseConfigFile failed: %v", err)
+		}
+		if cfg.SidecarDefault != SidecarIgnore {
+			t.Errorf("Expected SidecarDefault to be %q, got %q", SidecarIgnore, cfg.SidecarDefault)
+		}
+	})
+
+	t.Run("ParseSidecarOverrides", func(t *testing.T) {
+		content := `
+sidecar_default: delete
+sidecars:
+  xmp: copy
+  srt: copy
+  thm: ignore
+`
+		tmpFileName := createTempConfig(t, content)
+		defer os.Remove(tmpFileName)
+
+		cfg := &config{}
+		if err := setDefaults(cfg); err != nil {
+			t.Fatalf("setDefaults failed: %v", err)
+		}
+		cfg.ConfigFile = tmpFileName
+		if err := parseConfigFile(cfg); err != nil {
+			t.Fatalf("parseConfigFile failed: %v", err)
+		}
+		if cfg.SidecarDefault != SidecarDelete {
+			t.Errorf("Expected SidecarDefault %q, got %q", SidecarDelete, cfg.SidecarDefault)
+		}
+		if cfg.Sidecars["xmp"] != SidecarCopy {
+			t.Errorf("Expected xmp=copy, got %q", cfg.Sidecars["xmp"])
+		}
+		if cfg.Sidecars["thm"] != SidecarIgnore {
+			t.Errorf("Expected thm=ignore, got %q", cfg.Sidecars["thm"])
+		}
+	})
+
+	t.Run("DefaultSidecarValues", func(t *testing.T) {
+		cfg := &config{}
+		if err := setDefaults(cfg); err != nil {
+			t.Fatalf("setDefaults failed: %v", err)
+		}
+		if cfg.SidecarDefault != SidecarDelete {
+			t.Errorf("Expected default SidecarDefault %q, got %q", SidecarDelete, cfg.SidecarDefault)
+		}
+		if cfg.Sidecars == nil {
+			t.Error("Expected Sidecars map to be initialized, got nil")
+		}
+	})
+}
+
+func TestValidateConfigInvalidSidecarAction(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "source")
+	if err != nil {
+		t.Fatalf("Failed to create temp directory: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	destDir := filepath.Join(tmpDir, "dest")
+
+	t.Run("InvalidSidecarDefault", func(t *testing.T) {
+		cfg := &config{
+			SourceDir:      tmpDir,
+			DestDir:        destDir,
+			SidecarDefault: SidecarAction("bogus"),
+		}
+		err := validateConfig(cfg)
+		if err == nil {
+			t.Error("Expected error for invalid sidecar default, got nil")
+		}
+	})
+
+	t.Run("InvalidSidecarOverride", func(t *testing.T) {
+		cfg := &config{
+			SourceDir:      tmpDir,
+			DestDir:        destDir,
+			SidecarDefault: SidecarDelete,
+			Sidecars:       map[string]SidecarAction{"xmp": SidecarAction("bogus")},
+		}
+		err := validateConfig(cfg)
+		if err == nil {
+			t.Error("Expected error for invalid sidecar override action, got nil")
 		}
 	})
 }

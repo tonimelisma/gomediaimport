@@ -23,21 +23,24 @@ var args struct {
 	SkipThumbnails     bool   `arg:"--skip-thumbnails" help:"Skip thumbnail generation"`
 	DeleteOriginals    bool   `arg:"--delete-originals" help:"Delete original files after successful import"`
 	AutoEjectMacOS     bool   `arg:"--auto-eject-macos" help:"Automatically eject media after import on macOS (e.g., source drive)"`
+	SidecarDefault     string `arg:"--sidecar-default" help:"Default action for unknown sidecar types (ignore/copy/delete)" default:"delete"`
 }
 
 // config holds the application configuration
 type config struct {
-	SourceDir          string `yaml:"source_directory"`
-	DestDir            string `yaml:"destination_directory"`
-	ConfigFile         string
-	OrganizeByDate     bool `yaml:"organize_by_date"`
-	RenameByDateTime   bool `yaml:"rename_by_date_time"`
-	ChecksumDuplicates bool `yaml:"checksum_duplicates"`
-	Verbose            bool `yaml:"verbose"`
-	DryRun             bool `yaml:"dry_run"`
-	SkipThumbnails     bool `yaml:"skip_thumbnails"`
-	DeleteOriginals    bool `yaml:"delete_originals"`
-	AutoEjectMacOS     bool `yaml:"auto_eject_macos"`
+	SourceDir          string                   `yaml:"source_directory"`
+	DestDir            string                   `yaml:"destination_directory"`
+	ConfigFile         string                   `yaml:"-"`
+	OrganizeByDate     bool                     `yaml:"organize_by_date"`
+	RenameByDateTime   bool                     `yaml:"rename_by_date_time"`
+	ChecksumDuplicates bool                     `yaml:"checksum_duplicates"`
+	Verbose            bool                     `yaml:"verbose"`
+	DryRun             bool                     `yaml:"dry_run"`
+	SkipThumbnails     bool                     `yaml:"skip_thumbnails"`
+	DeleteOriginals    bool                     `yaml:"delete_originals"`
+	AutoEjectMacOS     bool                     `yaml:"auto_eject_macos"`
+	SidecarDefault     SidecarAction            `yaml:"sidecar_default"`
+	Sidecars           map[string]SidecarAction `yaml:"sidecars"`
 }
 
 // setDefaults initializes the config with default values
@@ -57,6 +60,8 @@ func setDefaults(cfg *config) error {
 	cfg.SkipThumbnails = false
 	cfg.DeleteOriginals = false
 	cfg.AutoEjectMacOS = false
+	cfg.SidecarDefault = SidecarDelete
+	cfg.Sidecars = make(map[string]SidecarAction)
 	return nil
 }
 
@@ -98,6 +103,18 @@ func validateConfig(cfg *config) error {
 	destParent := filepath.Dir(cfg.DestDir)
 	if _, err := os.Stat(destParent); os.IsNotExist(err) {
 		return fmt.Errorf("destination parent directory does not exist: %s", destParent)
+	}
+
+	// Validate sidecar default action
+	if !isValidSidecarAction(cfg.SidecarDefault) {
+		return fmt.Errorf("invalid sidecar default action: %q (must be ignore, copy, or delete)", cfg.SidecarDefault)
+	}
+
+	// Validate per-extension sidecar overrides
+	for ext, action := range cfg.Sidecars {
+		if !isValidSidecarAction(action) {
+			return fmt.Errorf("invalid sidecar action for extension %q: %q (must be ignore, copy, or delete)", ext, action)
+		}
 	}
 
 	return nil
@@ -165,6 +182,9 @@ func run() error {
 	}
 	if wasFlagProvided("--auto-eject-macos") {
 		cfg.AutoEjectMacOS = args.AutoEjectMacOS
+	}
+	if wasFlagProvided("--sidecar-default") {
+		cfg.SidecarDefault = SidecarAction(args.SidecarDefault)
 	}
 
 	// Validate the configuration

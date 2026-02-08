@@ -54,7 +54,7 @@ func TestEnumerateFiles(t *testing.T) {
 	}
 
 	// Test enumerateFiles
-	files, err := enumerateFiles(tempDir, false)
+	files, err := enumerateFiles(tempDir, config{})
 	if err != nil {
 		t.Fatalf("enumerateFiles failed: %v", err)
 	}
@@ -76,7 +76,7 @@ func TestEnumerateFiles(t *testing.T) {
 	}
 
 	// Test with non-existent directory
-	_, err = enumerateFiles("/non/existent/dir", false)
+	_, err = enumerateFiles("/non/existent/dir", config{})
 	if err == nil {
 		t.Error("Expected error for non-existent directory, but got none")
 	}
@@ -88,7 +88,7 @@ func TestEnumerateFiles(t *testing.T) {
 	}
 	defer os.RemoveAll(emptyDir)
 
-	emptyFiles, err := enumerateFiles(emptyDir, false)
+	emptyFiles, err := enumerateFiles(emptyDir, config{})
 	if err != nil {
 		t.Fatalf("enumerateFiles failed for empty directory: %v", err)
 	}
@@ -378,4 +378,91 @@ func TestCopyFilesActualCopy(t *testing.T) {
 			t.Errorf("files[%d] content mismatch: got %q, want %q", i, data, expected)
 		}
 	}
+}
+
+func TestEnumerateFilesWithSidecars(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "sidecar-enum-test")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	// Create media + sidecar files
+	for _, name := range []string{"IMG_001.jpg", "IMG_001.xmp", "IMG_002.mp4", "IMG_002.thm", "index.ctg", "notes.txt"} {
+		if err := os.WriteFile(filepath.Join(tempDir, name), []byte("data"), 0644); err != nil {
+			t.Fatalf("Failed to create %s: %v", name, err)
+		}
+	}
+
+	t.Run("DefaultConfig_SidecarsEnumerated", func(t *testing.T) {
+		cfg := config{SidecarDefault: SidecarDelete}
+		files, err := enumerateFiles(tempDir, cfg)
+		if err != nil {
+			t.Fatalf("enumerateFiles failed: %v", err)
+		}
+
+		// Should have: IMG_001.jpg, IMG_002.mp4 (media) + IMG_001.xmp, IMG_002.thm, index.ctg (sidecars with non-ignore action)
+		// notes.txt is not media or sidecar — skipped
+		mediaCount := 0
+		sidecarCount := 0
+		for _, f := range files {
+			if f.MediaCategory == Sidecar {
+				sidecarCount++
+			} else {
+				mediaCount++
+			}
+		}
+		if mediaCount != 2 {
+			t.Errorf("Expected 2 media files, got %d", mediaCount)
+		}
+		if sidecarCount != 3 {
+			t.Errorf("Expected 3 sidecar files, got %d", sidecarCount)
+		}
+	})
+
+	t.Run("IgnoreAllSidecars", func(t *testing.T) {
+		// To truly ignore all sidecars, must override each known extension
+		cfg := config{
+			SidecarDefault: SidecarIgnore,
+			Sidecars: map[string]SidecarAction{
+				"xmp": SidecarIgnore,
+				"thm": SidecarIgnore,
+				"ctg": SidecarIgnore,
+			},
+		}
+		files, err := enumerateFiles(tempDir, cfg)
+		if err != nil {
+			t.Fatalf("enumerateFiles failed: %v", err)
+		}
+
+		for _, f := range files {
+			if f.MediaCategory == Sidecar {
+				t.Errorf("Sidecar file %s should have been ignored", f.SourceName)
+			}
+		}
+		if len(files) != 2 {
+			t.Errorf("Expected 2 media files, got %d", len(files))
+		}
+	})
+
+	t.Run("OverrideSpecificSidecar", func(t *testing.T) {
+		cfg := config{
+			SidecarDefault: SidecarDelete,
+			Sidecars:       map[string]SidecarAction{"xmp": SidecarIgnore},
+		}
+		files, err := enumerateFiles(tempDir, cfg)
+		if err != nil {
+			t.Fatalf("enumerateFiles failed: %v", err)
+		}
+
+		for _, f := range files {
+			if f.SourceName == "IMG_001.xmp" {
+				t.Error("IMG_001.xmp should have been ignored due to override")
+			}
+		}
+		// 2 media + 2 sidecars (thm + ctg, xmp ignored)
+		if len(files) != 4 {
+			t.Errorf("Expected 4 files, got %d", len(files))
+		}
+	})
 }

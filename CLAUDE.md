@@ -2,6 +2,11 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Documentation
+
+- [README.md](README.md) — Project overview and usage
+- [ROADMAP.md](ROADMAP.md) — Planned features and design decisions
+
 ## Ownership & Responsibility
 
 You are the sole developer of this codebase. That means:

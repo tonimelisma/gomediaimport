@@ -51,7 +51,50 @@ const (
 	RawPicture       MediaCategory = "raw_picture"
 	Video            MediaCategory = "video"
 	RawVideo         MediaCategory = "raw_video"
+	Sidecar          MediaCategory = "sidecar"
 )
+
+// SidecarAction defines how a sidecar file type should be handled
+type SidecarAction string
+
+const (
+	SidecarIgnore SidecarAction = "ignore"
+	SidecarCopy   SidecarAction = "copy"
+	SidecarDelete SidecarAction = "delete"
+)
+
+// sidecarDefaults maps sidecar extensions to their default actions
+var sidecarDefaults = map[string]SidecarAction{
+	"thm": SidecarDelete,
+	"ctg": SidecarDelete,
+	"xmp": SidecarCopy,
+	"aae": SidecarDelete,
+	"lrf": SidecarDelete,
+	"srt": SidecarCopy,
+}
+
+// isSidecarExtension returns true if the extension (without dot, lowercase) is a known sidecar type
+func isSidecarExtension(ext string) bool {
+	_, ok := sidecarDefaults[ext]
+	return ok
+}
+
+// getSidecarAction returns the action for a sidecar extension, checking overrides first,
+// then built-in defaults, then the global default
+func getSidecarAction(ext string, sidecarOverrides map[string]SidecarAction, sidecarDefault SidecarAction) SidecarAction {
+	if action, ok := sidecarOverrides[ext]; ok {
+		return action
+	}
+	if action, ok := sidecarDefaults[ext]; ok {
+		return action
+	}
+	return sidecarDefault
+}
+
+// isValidSidecarAction returns true if the action is a valid SidecarAction value
+func isValidSidecarAction(action SidecarAction) bool {
+	return action == SidecarIgnore || action == SidecarCopy || action == SidecarDelete
+}
 
 type FileTypeInfo struct {
 	FileType      FileType

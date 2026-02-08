@@ -117,3 +117,76 @@ func TestGetFirstExtensionForFileType(t *testing.T) {
 		})
 	}
 }
+
+func TestIsSidecarExtension(t *testing.T) {
+	tests := []struct {
+		ext      string
+		expected bool
+	}{
+		{"thm", true},
+		{"ctg", true},
+		{"xmp", true},
+		{"aae", true},
+		{"lrf", true},
+		{"srt", true},
+		{"jpg", false},
+		{"mp4", false},
+		{"txt", false},
+		{"", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.ext, func(t *testing.T) {
+			if got := isSidecarExtension(tt.ext); got != tt.expected {
+				t.Errorf("isSidecarExtension(%q) = %v, want %v", tt.ext, got, tt.expected)
+			}
+		})
+	}
+}
+
+func TestGetSidecarAction(t *testing.T) {
+	tests := []struct {
+		name      string
+		ext       string
+		overrides map[string]SidecarAction
+		defAction SidecarAction
+		expected  SidecarAction
+	}{
+		{"built-in default for xmp", "xmp", nil, SidecarDelete, SidecarCopy},
+		{"built-in default for thm", "thm", nil, SidecarCopy, SidecarDelete},
+		{"override beats built-in", "xmp", map[string]SidecarAction{"xmp": SidecarDelete}, SidecarIgnore, SidecarDelete},
+		{"override beats global default", "foo", map[string]SidecarAction{"foo": SidecarCopy}, SidecarDelete, SidecarCopy},
+		{"global default for unknown ext", "zzz", nil, SidecarIgnore, SidecarIgnore},
+		{"global default fallthrough", "zzz", map[string]SidecarAction{}, SidecarDelete, SidecarDelete},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := getSidecarAction(tt.ext, tt.overrides, tt.defAction)
+			if got != tt.expected {
+				t.Errorf("getSidecarAction(%q, ...) = %q, want %q", tt.ext, got, tt.expected)
+			}
+		})
+	}
+}
+
+func TestIsValidSidecarAction(t *testing.T) {
+	tests := []struct {
+		action   SidecarAction
+		expected bool
+	}{
+		{SidecarIgnore, true},
+		{SidecarCopy, true},
+		{SidecarDelete, true},
+		{SidecarAction("invalid"), false},
+		{SidecarAction(""), false},
+	}
+
+	for _, tt := range tests {
+		t.Run(string(tt.action), func(t *testing.T) {
+			if got := isValidSidecarAction(tt.action); got != tt.expected {
+				t.Errorf("isValidSidecarAction(%q) = %v, want %v", tt.action, got, tt.expected)
+			}
+		})
+	}
+}

@@ -19,6 +19,7 @@ const (
 	StatusFailed                  FileStatus = "failed"
 	StatusUnnamable               FileStatus = "unnamable"
 	StatusDirectoryCreationFailed FileStatus = "directory creation failed"
+	StatusSidecarDeleted          FileStatus = "sidecar deleted"
 )
 
 // FileInfo represents information about each file being imported
@@ -33,6 +34,7 @@ type FileInfo struct {
 	MediaCategory    MediaCategory
 	FileType         FileType
 	Status           FileStatus
+	ParentIndex      int // Index of parent media file for sidecars, -1 if N/A
 }
 
 // importMedia handles the main functionality of the program
@@ -45,12 +47,18 @@ func importMedia(cfg config) error {
 		fmt.Println("Checksum duplicates:", cfg.ChecksumDuplicates)
 		fmt.Println("Skip thumbnails:", cfg.SkipThumbnails)
 		fmt.Println("Delete originals:", cfg.DeleteOriginals)
+		fmt.Println("Sidecar default:", cfg.SidecarDefault)
 	}
 
 	// Enumerate files in the source directory
-	files, err := enumerateFiles(cfg.SourceDir, cfg.SkipThumbnails)
+	files, err := enumerateFiles(cfg.SourceDir, cfg)
 	if err != nil {
 		return fmt.Errorf("failed to enumerate files: %w", err)
+	}
+
+	// Initialize ParentIndex to -1 for all files
+	for i := range files {
+		files[i].ParentIndex = -1
 	}
 
 	// Print the number of files enumerated
@@ -58,9 +66,13 @@ func importMedia(cfg config) error {
 		fmt.Printf("Number of files enumerated: %d\n", len(files))
 	}
 
-	// Process each file
+	// Pass 1: Process non-sidecar files
 	sizeTimeIndex := make(map[fileSizeTime][]int)
 	for i := range files {
+		if files[i].MediaCategory == Sidecar {
+			continue
+		}
+
 		// Set destination directory
 		if cfg.OrganizeByDate {
 			files[i].DestDir = filepath.Join(cfg.DestDir, files[i].CreationDateTime.Format("2006/01"))
@@ -87,6 +99,69 @@ func importMedia(cfg config) error {
 		sizeTimeIndex[key] = append(sizeTimeIndex[key], i)
 	}
 
+	// Build parent index: map (sourceDir, lowerBaseName) → first media file index
+	type parentKey struct {
+		dir      string
+		baseName string
+	}
+	parentIndex := make(map[parentKey]int)
+	for i := range files {
+		if files[i].MediaCategory == Sidecar {
+			continue
+		}
+		ext := filepath.Ext(files[i].SourceName)
+		base := strings.TrimSuffix(files[i].SourceName, ext)
+		key := parentKey{dir: files[i].SourceDir, baseName: strings.ToLower(base)}
+		if _, exists := parentIndex[key]; !exists {
+			parentIndex[key] = i
+		}
+	}
+
+	// Pass 2: Process sidecar files
+	for i := range files {
+		if files[i].MediaCategory != Sidecar {
+			continue
+		}
+
+		sidecarExt := strings.ToLower(filepath.Ext(files[i].SourceName))
+		if sidecarExt != "" {
+			sidecarExt = sidecarExt[1:]
+		}
+		action := getSidecarAction(sidecarExt, cfg.Sidecars, cfg.SidecarDefault)
+
+		if action == SidecarDelete {
+			files[i].Status = StatusSidecarDeleted
+			continue
+		}
+
+		// action == SidecarCopy — find parent
+		ext := filepath.Ext(files[i].SourceName)
+		base := strings.TrimSuffix(files[i].SourceName, ext)
+		key := parentKey{dir: files[i].SourceDir, baseName: strings.ToLower(base)}
+
+		if pi, ok := parentIndex[key]; ok {
+			// Parent found — derive destination from parent
+			files[i].ParentIndex = pi
+			parentFile := files[pi]
+			files[i].DestDir = parentFile.DestDir
+			parentDestExt := filepath.Ext(parentFile.DestName)
+			parentDestBase := strings.TrimSuffix(parentFile.DestName, parentDestExt)
+			files[i].DestName = parentDestBase + ext
+		} else {
+			// Orphaned sidecar — plan destination independently using own mtime
+			if cfg.OrganizeByDate {
+				files[i].DestDir = filepath.Join(cfg.DestDir, files[i].CreationDateTime.Format("2006/01"))
+			} else {
+				files[i].DestDir = cfg.DestDir
+			}
+			if cfg.RenameByDateTime {
+				files[i].DestName = files[i].CreationDateTime.Format("20060102_150405") + ext
+			} else {
+				files[i].DestName = files[i].SourceName
+			}
+		}
+	}
+
 	// Copy files
 	if err := copyFiles(files, cfg); err != nil {
 		return fmt.Errorf("failed to copy files: %w", err)
@@ -99,7 +174,7 @@ func importMedia(cfg config) error {
 
 	// Enumerate file statuses if verbose
 	if cfg.Verbose {
-		var preExisting, failed, copied, total int
+		var preExisting, failed, copied, sidecarDeleted, total int
 		for _, file := range files {
 			total++
 			switch file.Status {
@@ -109,6 +184,8 @@ func importMedia(cfg config) error {
 				failed++
 			case StatusCopied:
 				copied++
+			case StatusSidecarDeleted:
+				sidecarDeleted++
 			}
 		}
 		fmt.Printf("\nFile status summary:\n")
@@ -116,6 +193,9 @@ func importMedia(cfg config) error {
 		fmt.Printf("Pre-existing: %d\n", preExisting)
 		fmt.Printf("Failed: %d\n", failed)
 		fmt.Printf("Copied: %d\n", copied)
+		if sidecarDeleted > 0 {
+			fmt.Printf("Sidecars marked for deletion: %d\n", sidecarDeleted)
+		}
 	}
 
 	// If we've reached this point, all main import operations were successful.
@@ -137,7 +217,7 @@ func importMedia(cfg config) error {
 func copyFiles(files []FileInfo, cfg config) error {
 	var totalSize int64
 	for _, file := range files {
-		if file.Status != StatusUnnamable && file.Status != StatusPreExisting {
+		if file.Status != StatusUnnamable && file.Status != StatusPreExisting && file.Status != StatusSidecarDeleted {
 			totalSize += file.Size
 		}
 	}
@@ -150,7 +230,7 @@ func copyFiles(files []FileInfo, cfg config) error {
 	startTime := time.Now()
 
 	for i := range files {
-		if files[i].Status == StatusUnnamable || files[i].Status == StatusPreExisting {
+		if files[i].Status == StatusUnnamable || files[i].Status == StatusPreExisting || files[i].Status == StatusSidecarDeleted {
 			continue
 		}
 
@@ -251,7 +331,7 @@ func deleteOriginalFiles(files []FileInfo, cfg config) error {
 	var deletedSize int64
 
 	for _, file := range files {
-		if file.Status == StatusCopied || file.Status == StatusPreExisting {
+		if file.Status == StatusCopied || file.Status == StatusPreExisting || file.Status == StatusSidecarDeleted {
 			sourcePath := filepath.Join(file.SourceDir, file.SourceName)
 			if !cfg.DryRun {
 				err := os.Remove(sourcePath)

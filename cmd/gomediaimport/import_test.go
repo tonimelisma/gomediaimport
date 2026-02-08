@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -183,4 +184,266 @@ func TestCopyFileErrors(t *testing.T) {
 
 	// Restore permissions for cleanup
 	os.Chmod(readOnlyDir, 0755)
+}
+
+func TestSidecarCopyFollowsParentRename(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "sidecar-parent-test")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	srcDir := filepath.Join(tmpDir, "src")
+	destDir := filepath.Join(tmpDir, "dest")
+	if err := os.MkdirAll(srcDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create a JPEG and its XMP sidecar
+	if err := os.WriteFile(filepath.Join(srcDir, "IMG_001.jpg"), []byte("jpeg data"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(srcDir, "IMG_001.xmp"), []byte("xmp data"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	now := time.Date(2024, 3, 15, 14, 30, 0, 0, time.UTC)
+
+	cfg := config{
+		SourceDir:      srcDir,
+		DestDir:        destDir,
+		RenameByDateTime: true,
+		SidecarDefault: SidecarDelete,
+		Sidecars:       map[string]SidecarAction{},
+	}
+
+	files, err := enumerateFiles(srcDir, cfg)
+	if err != nil {
+		t.Fatalf("enumerateFiles failed: %v", err)
+	}
+
+	// Set CreationDateTime on all files for consistent testing
+	for i := range files {
+		files[i].CreationDateTime = now
+		files[i].ParentIndex = -1
+	}
+
+	// Pass 1: process media files
+	sizeTimeIndex := make(map[fileSizeTime][]int)
+	for i := range files {
+		if files[i].MediaCategory == Sidecar {
+			continue
+		}
+		files[i].DestDir = destDir
+		initialFilename := now.Format("20060102_150405") + filepath.Ext(files[i].SourceName)
+		if err := setFinalDestinationFilename(&files, i, initialFilename, cfg, sizeTimeIndex); err != nil {
+			t.Fatalf("setFinalDestinationFilename failed: %v", err)
+		}
+		key := fileSizeTime{Size: files[i].Size, Timestamp: files[i].CreationDateTime}
+		sizeTimeIndex[key] = append(sizeTimeIndex[key], i)
+	}
+
+	// Build parent index
+	type parentKey struct {
+		dir      string
+		baseName string
+	}
+	parentIdx := make(map[parentKey]int)
+	for i := range files {
+		if files[i].MediaCategory == Sidecar {
+			continue
+		}
+		ext := filepath.Ext(files[i].SourceName)
+		base := files[i].SourceName[:len(files[i].SourceName)-len(ext)]
+		key := parentKey{dir: files[i].SourceDir, baseName: strings.ToLower(base)}
+		if _, exists := parentIdx[key]; !exists {
+			parentIdx[key] = i
+		}
+	}
+
+	// Pass 2: process sidecars
+	for i := range files {
+		if files[i].MediaCategory != Sidecar {
+			continue
+		}
+		sidecarExt := strings.ToLower(filepath.Ext(files[i].SourceName))
+		if sidecarExt != "" {
+			sidecarExt = sidecarExt[1:]
+		}
+		action := getSidecarAction(sidecarExt, cfg.Sidecars, cfg.SidecarDefault)
+		if action == SidecarDelete {
+			files[i].Status = StatusSidecarDeleted
+			continue
+		}
+
+		ext := filepath.Ext(files[i].SourceName)
+		base := files[i].SourceName[:len(files[i].SourceName)-len(ext)]
+		key := parentKey{dir: files[i].SourceDir, baseName: strings.ToLower(base)}
+		if pi, ok := parentIdx[key]; ok {
+			files[i].ParentIndex = pi
+			parentFile := files[pi]
+			files[i].DestDir = parentFile.DestDir
+			parentDestExt := filepath.Ext(parentFile.DestName)
+			parentDestBase := parentFile.DestName[:len(parentFile.DestName)-len(parentDestExt)]
+			files[i].DestName = parentDestBase + ext
+		}
+	}
+
+	// Verify: XMP should follow parent's renamed destination
+	for _, f := range files {
+		if f.SourceName == "IMG_001.xmp" {
+			if f.DestName != "20240315_143000.xmp" {
+				t.Errorf("Expected sidecar dest name 20240315_143000.xmp, got %s", f.DestName)
+			}
+			if f.DestDir != destDir {
+				t.Errorf("Expected sidecar dest dir %s, got %s", destDir, f.DestDir)
+			}
+			return
+		}
+	}
+	t.Error("XMP sidecar not found in files list")
+}
+
+func TestSidecarDeleteAction(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "sidecar-delete-test")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	srcDir := filepath.Join(tmpDir, "src")
+	destDir := filepath.Join(tmpDir, "dest")
+	if err := os.MkdirAll(srcDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create media + THM sidecar
+	if err := os.WriteFile(filepath.Join(srcDir, "VID_001.mp4"), []byte("video data"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(srcDir, "VID_001.thm"), []byte("thumb data"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg := config{
+		SourceDir:       srcDir,
+		DestDir:         destDir,
+		SidecarDefault:  SidecarDelete,
+		Sidecars:        map[string]SidecarAction{},
+		DeleteOriginals: true,
+	}
+
+	if err := importMedia(cfg); err != nil {
+		t.Fatalf("importMedia failed: %v", err)
+	}
+
+	// THM should be deleted from source (sidecar delete + delete originals)
+	if _, err := os.Stat(filepath.Join(srcDir, "VID_001.thm")); !os.IsNotExist(err) {
+		t.Error("THM sidecar should have been deleted from source")
+	}
+
+	// MP4 should be deleted from source (copied + delete originals)
+	if _, err := os.Stat(filepath.Join(srcDir, "VID_001.mp4")); !os.IsNotExist(err) {
+		t.Error("MP4 should have been deleted from source")
+	}
+
+	// MP4 should exist in dest
+	if _, err := os.Stat(filepath.Join(destDir, "VID_001.mp4")); os.IsNotExist(err) {
+		t.Error("MP4 should exist in destination")
+	}
+
+	// THM should NOT exist in dest (it was action=delete, not copy)
+	if _, err := os.Stat(filepath.Join(destDir, "VID_001.thm")); !os.IsNotExist(err) {
+		t.Error("THM sidecar should NOT exist in destination")
+	}
+}
+
+func TestOrphanedSidecarCopiedIndependently(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "orphan-sidecar-test")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	srcDir := filepath.Join(tmpDir, "src")
+	destDir := filepath.Join(tmpDir, "dest")
+	if err := os.MkdirAll(srcDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create ONLY a sidecar file (no parent media)
+	if err := os.WriteFile(filepath.Join(srcDir, "IMG_001.xmp"), []byte("xmp data"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg := config{
+		SourceDir:      srcDir,
+		DestDir:        destDir,
+		SidecarDefault: SidecarDelete,
+		Sidecars:       map[string]SidecarAction{},
+	}
+	// xmp built-in default is copy, so it should be copied independently
+
+	if err := importMedia(cfg); err != nil {
+		t.Fatalf("importMedia failed: %v", err)
+	}
+
+	// XMP should exist in dest
+	if _, err := os.Stat(filepath.Join(destDir, "IMG_001.xmp")); os.IsNotExist(err) {
+		t.Error("Orphaned XMP sidecar should have been copied to destination")
+	}
+}
+
+func TestOrphanedSidecarDeletedWithDeleteOriginals(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "orphan-del-test")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	srcDir := filepath.Join(tmpDir, "src")
+	destDir := filepath.Join(tmpDir, "dest")
+	if err := os.MkdirAll(srcDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create orphaned CTG and XMP files (no parent media)
+	if err := os.WriteFile(filepath.Join(srcDir, "index.ctg"), []byte("ctg data"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(srcDir, "IMG_001.xmp"), []byte("xmp data"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg := config{
+		SourceDir:       srcDir,
+		DestDir:         destDir,
+		SidecarDefault:  SidecarDelete,
+		Sidecars:        map[string]SidecarAction{},
+		DeleteOriginals: true,
+	}
+
+	if err := importMedia(cfg); err != nil {
+		t.Fatalf("importMedia failed: %v", err)
+	}
+
+	// CTG should be deleted from source (action=delete + delete_originals)
+	if _, err := os.Stat(filepath.Join(srcDir, "index.ctg")); !os.IsNotExist(err) {
+		t.Error("CTG should have been deleted from source")
+	}
+
+	// XMP should be deleted from source (action=copy → copied → delete_originals)
+	if _, err := os.Stat(filepath.Join(srcDir, "IMG_001.xmp")); !os.IsNotExist(err) {
+		t.Error("XMP should have been deleted from source after copy")
+	}
+
+	// XMP should exist in dest
+	if _, err := os.Stat(filepath.Join(destDir, "IMG_001.xmp")); os.IsNotExist(err) {
+		t.Error("XMP should have been copied to destination")
+	}
+
+	// CTG should NOT exist in dest
+	if _, err := os.Stat(filepath.Join(destDir, "index.ctg")); !os.IsNotExist(err) {
+		t.Error("CTG should NOT exist in destination")
+	}
 }

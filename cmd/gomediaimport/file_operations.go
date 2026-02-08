@@ -14,7 +14,7 @@ import (
 )
 
 // enumerateFiles scans the source directory and returns a list of FileInfo structs
-func enumerateFiles(sourceDir string, skipThumbnails bool) ([]FileInfo, error) {
+func enumerateFiles(sourceDir string, cfg config) ([]FileInfo, error) {
 	var files []FileInfo
 
 	// Check if the source directory exists
@@ -45,7 +45,7 @@ func enumerateFiles(sourceDir string, skipThumbnails bool) ([]FileInfo, error) {
 		}
 
 		// Skip directories and files containing "THMBNL" if skipThumbnails is true
-		if skipThumbnails && strings.Contains(path, "THMBNL") {
+		if cfg.SkipThumbnails && strings.Contains(path, "THMBNL") {
 			if d.IsDir() {
 				return filepath.SkipDir
 			}
@@ -73,7 +73,21 @@ func enumerateFiles(sourceDir string, skipThumbnails bool) ([]FileInfo, error) {
 		// Get media type information
 		category, fileType := getMediaTypeInfo(fileInfo)
 		if category == "" {
-			// Skip non-media files
+			// Check if it's a sidecar file
+			ext := strings.ToLower(filepath.Ext(info.Name()))
+			if ext != "" {
+				ext = ext[1:] // Remove leading dot
+			}
+			if isSidecarExtension(ext) {
+				action := getSidecarAction(ext, cfg.Sidecars, cfg.SidecarDefault)
+				if action == SidecarIgnore {
+					return nil
+				}
+				fileInfo.MediaCategory = Sidecar
+				files = append(files, fileInfo)
+				return nil
+			}
+			// Skip non-media, non-sidecar files
 			return nil
 		}
 

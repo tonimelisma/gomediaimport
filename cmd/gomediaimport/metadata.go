@@ -10,6 +10,10 @@ import (
 )
 
 func extractCreationDateTimeFromMetadata(fileInfo FileInfo) (time.Time, error) {
+	if fileInfo.MediaCategory == Sidecar {
+		return time.Time{}, fmt.Errorf("sidecar files do not have embedded metadata")
+	}
+
 	if fileInfo.MediaCategory == ProcessedPicture || fileInfo.MediaCategory == RawPicture {
 		filePath := filepath.Join(fileInfo.SourceDir, fileInfo.SourceName)
 		file, err := os.Open(filePath)
