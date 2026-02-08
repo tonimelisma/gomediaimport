@@ -20,9 +20,10 @@ Before considering any task complete, you must:
 1. `go build ./cmd/gomediaimport` — compiles without errors
 2. `go test -race ./cmd/gomediaimport` — all tests pass, no race conditions
 3. `go vet ./cmd/gomediaimport` — no warnings
-4. `git status` — clean working tree (no modified, staged, or untracked files that shouldn't be there)
-5. Commits have clear, conventional-style messages (e.g. `fix:`, `feat:`, `refactor:`, `test:`, `docs:`)
-6. If asked to push, `git push` after all the above
+4. If on Toni's MacBook Pro (`Tonis-MacBook-Pro.local`), `go install ./cmd/gomediaimport` — installs to `~/go/bin/`
+5. `git status` — clean working tree (no modified, staged, or untracked files that shouldn't be there)
+6. Commits have clear, conventional-style messages (e.g. `fix:`, `feat:`, `refactor:`, `test:`, `docs:`)
+7. If asked to push, `git push` after all the above
 
 ## Build & Test Commands
 
