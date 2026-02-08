@@ -44,7 +44,6 @@ func importMedia(cfg config) error {
 		fmt.Println("Organize by date:", cfg.OrganizeByDate)
 		fmt.Println("Rename by date and time:", cfg.RenameByDateTime)
 		fmt.Println("Checksum duplicates:", cfg.ChecksumDuplicates)
-		fmt.Println("Checksum imports:", cfg.ChecksumImports)
 		fmt.Println("Skip thumbnails:", cfg.SkipThumbnails)
 		fmt.Println("Delete originals:", cfg.DeleteOriginals)
 	}

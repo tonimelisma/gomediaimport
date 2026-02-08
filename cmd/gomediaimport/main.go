@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/alexflint/go-arg"
 	"gopkg.in/yaml.v2"
@@ -17,7 +18,6 @@ var args struct {
 	OrganizeByDate     bool   `arg:"--organize-by-date" help:"Organize files by date"`
 	RenameByDateTime   bool   `arg:"--rename-by-date-time" help:"Rename files by date and time"`
 	ChecksumDuplicates bool   `arg:"--checksum-duplicates" help:"Use checksums to identify duplicates"`
-	ChecksumImports    bool   `arg:"--checksum-imports" help:"Calculate checksums for imported files"`
 	Verbose            bool   `arg:"-v,--verbose" help:"Enable verbose output"`
 	DryRun             bool   `arg:"--dry-run" help:"Perform a dry run without making changes"`
 	SkipThumbnails     bool   `arg:"--skip-thumbnails" help:"Skip thumbnail generation"`
@@ -33,7 +33,6 @@ type config struct {
 	OrganizeByDate     bool `yaml:"organize_by_date"`
 	RenameByDateTime   bool `yaml:"rename_by_date_time"`
 	ChecksumDuplicates bool `yaml:"checksum_duplicates"`
-	ChecksumImports    bool `yaml:"checksum_imports"`
 	Verbose            bool `yaml:"verbose"`
 	DryRun             bool `yaml:"dry_run"`
 	SkipThumbnails     bool `yaml:"skip_thumbnails"`
@@ -53,7 +52,6 @@ func setDefaults(cfg *config) error {
 	cfg.OrganizeByDate = false
 	cfg.RenameByDateTime = false
 	cfg.ChecksumDuplicates = false
-	cfg.ChecksumImports = false
 	cfg.Verbose = false
 	cfg.DryRun = false
 	cfg.SkipThumbnails = false
@@ -99,6 +97,16 @@ func validateConfig(cfg *config) error {
 	return nil
 }
 
+// wasFlagProvided checks if a CLI flag was explicitly provided
+func wasFlagProvided(flagName string) bool {
+	for _, a := range os.Args[1:] {
+		if a == flagName || strings.HasPrefix(a, flagName+"=") {
+			return true
+		}
+	}
+	return false
+}
+
 func run() error {
 	// Create an instance of the config struct
 	cfg := config{}
@@ -128,31 +136,28 @@ func run() error {
 	if args.DestDir != "" {
 		cfg.DestDir = args.DestDir
 	}
-	if args.OrganizeByDate {
+	if wasFlagProvided("--organize-by-date") {
 		cfg.OrganizeByDate = args.OrganizeByDate
 	}
-	if args.RenameByDateTime {
+	if wasFlagProvided("--rename-by-date-time") {
 		cfg.RenameByDateTime = args.RenameByDateTime
 	}
-	if args.ChecksumDuplicates {
+	if wasFlagProvided("--checksum-duplicates") {
 		cfg.ChecksumDuplicates = args.ChecksumDuplicates
 	}
-	if args.ChecksumImports {
-		cfg.ChecksumImports = args.ChecksumImports
-	}
-	if args.Verbose {
+	if wasFlagProvided("-v") || wasFlagProvided("--verbose") {
 		cfg.Verbose = args.Verbose
 	}
-	if args.DryRun {
+	if wasFlagProvided("--dry-run") {
 		cfg.DryRun = args.DryRun
 	}
-	if args.SkipThumbnails {
+	if wasFlagProvided("--skip-thumbnails") {
 		cfg.SkipThumbnails = args.SkipThumbnails
 	}
-	if args.DeleteOriginals {
+	if wasFlagProvided("--delete-originals") {
 		cfg.DeleteOriginals = args.DeleteOriginals
 	}
-	if args.AutoEjectMacOS {
+	if wasFlagProvided("--auto-eject-macos") {
 		cfg.AutoEjectMacOS = args.AutoEjectMacOS
 	}
 
