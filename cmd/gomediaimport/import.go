@@ -28,7 +28,6 @@ type FileInfo struct {
 	DestName         string
 	DestDir          string
 	SourceChecksum   string
-	DestChecksum     string
 	CreationDateTime time.Time
 	Size             int64
 	MediaCategory    MediaCategory
@@ -257,9 +256,7 @@ func deleteOriginalFiles(files []FileInfo, cfg config) error {
 			if !cfg.DryRun {
 				err := os.Remove(sourcePath)
 				if err != nil {
-					if cfg.Verbose {
-						fmt.Printf("Failed to delete %s: %v\n", sourcePath, err)
-					}
+					fmt.Fprintf(os.Stderr, "Failed to delete %s: %v\n", sourcePath, err)
 					continue
 				}
 			}

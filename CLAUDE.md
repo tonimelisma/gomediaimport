@@ -58,7 +58,7 @@ gomediaimport is a CLI tool that imports and organizes media files (photos/video
 
 - **main.go** — Entry point, `run()` function (extracted from `main()` for testability), CLI parsing (`go-arg`), YAML config loading, config validation, `wasFlagProvided()` helper for proper boolean override semantics. Three-tier config precedence: CLI flags > YAML file (`~/.gomediaimportrc`) > hardcoded defaults.
 - **import.go** — Core orchestrator. Defines `FileStatus` type with typed constants and `FileInfo` struct (central data type tracking source/dest paths, checksums, creation time, media category, status). `importMedia()` coordinates enumeration → copying → deletion → eject. Builds `fileSizeTime` index for O(1) duplicate lookup.
-- **file_operations.go** — File enumeration via `filepath.WalkDir` (with symlink skipping), duplicate detection (size+timestamp index or CRC32 checksum), `exists()` returns `(bool, error)`, unique filename generation (appends `_001` through `_999999` on conflicts), macOS disk eject.
+- **file_operations.go** — File enumeration via `filepath.WalkDir` (with symlink skipping), duplicate detection (size+timestamp index or xxHash64 checksum), `exists()` returns `(bool, error)`, unique filename generation (appends `_001` through `_999999` on conflicts), macOS disk eject.
 - **metadata.go** — EXIF extraction using `imagemeta` library. Falls back to filesystem mtime. Video metadata extraction is TODO.
 - **media_types.go** — `MediaCategory` (ProcessedPicture, RawPicture, Video, RawVideo) and `FileType` constants. Extension-to-type mapping in `fileTypes` slice.
 
@@ -79,4 +79,4 @@ gomediaimport is a CLI tool that imports and organizes media files (photos/video
 - **Boolean CLI override**: `wasFlagProvided()` checks `os.Args` so CLI `--flag=false` correctly overrides a `true` config file value
 - **Single-threaded**: enumeration and copying are sequential
 - **Warnings to stderr**: checksum errors and setFileTimes failures logged to stderr, not swallowed
-- **`gomediaimport-launchagent/`** is a separate Swift/Xcode project for macOS automation (monitors volume insertion), not part of the Go build
+- **xxHash64 for checksums**: faster than CRC32, 64-bit collision space is more than sufficient for non-adversarial duplicate detection

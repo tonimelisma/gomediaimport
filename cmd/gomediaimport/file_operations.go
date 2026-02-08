@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"hash/crc32"
 	"io"
 	"io/fs"
 	"os"
@@ -10,6 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/cespare/xxhash/v2"
 )
 
 // enumerateFiles scans the source directory and returns a list of FileInfo structs
@@ -176,7 +177,7 @@ func isDuplicateInPreviousFiles(files *[]FileInfo, currentIndex int, checksumDup
 
 	// Calculate current file checksum if needed
 	if currentFile.SourceChecksum == "" {
-		checksum, err := calculateCRC32(filepath.Join(currentFile.SourceDir, currentFile.SourceName))
+		checksum, err := calculateXXHash(filepath.Join(currentFile.SourceDir, currentFile.SourceName))
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Warning: failed to calculate checksum for %s: %v\n", filepath.Join(currentFile.SourceDir, currentFile.SourceName), err)
 			return false
@@ -187,7 +188,7 @@ func isDuplicateInPreviousFiles(files *[]FileInfo, currentIndex int, checksumDup
 	for _, i := range indices {
 		previousFile := &(*files)[i]
 		if previousFile.SourceChecksum == "" {
-			checksum, err := calculateCRC32(filepath.Join(previousFile.SourceDir, previousFile.SourceName))
+			checksum, err := calculateXXHash(filepath.Join(previousFile.SourceDir, previousFile.SourceName))
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "Warning: failed to calculate checksum for %s: %v\n", filepath.Join(previousFile.SourceDir, previousFile.SourceName), err)
 				continue
@@ -237,7 +238,7 @@ func isDuplicate(file *FileInfo, destPath string, checksumDuplicates bool) bool 
 		srcChecksum := file.SourceChecksum
 		if srcChecksum == "" {
 			var err error
-			srcChecksum, err = calculateCRC32(filepath.Join(file.SourceDir, file.SourceName))
+			srcChecksum, err = calculateXXHash(filepath.Join(file.SourceDir, file.SourceName))
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "Warning: failed to calculate checksum for %s: %v\n", filepath.Join(file.SourceDir, file.SourceName), err)
 				return false
@@ -245,7 +246,7 @@ func isDuplicate(file *FileInfo, destPath string, checksumDuplicates bool) bool 
 			file.SourceChecksum = srcChecksum
 		}
 
-		destChecksum, err := calculateCRC32(destPath)
+		destChecksum, err := calculateXXHash(destPath)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Warning: failed to calculate checksum for %s: %v\n", destPath, err)
 			return false
@@ -257,19 +258,19 @@ func isDuplicate(file *FileInfo, destPath string, checksumDuplicates bool) bool 
 	return true
 }
 
-func calculateCRC32(filepath string) (string, error) {
+func calculateXXHash(filepath string) (string, error) {
 	file, err := os.Open(filepath)
 	if err != nil {
 		return "", err
 	}
 	defer file.Close()
 
-	hash := crc32.NewIEEE()
+	hash := xxhash.New()
 	if _, err := io.Copy(hash, file); err != nil {
 		return "", err
 	}
 
-	return fmt.Sprintf("%08x", hash.Sum32()), nil
+	return fmt.Sprintf("%016x", hash.Sum64()), nil
 }
 
 func setFileTimes(path string, modTime time.Time) error {

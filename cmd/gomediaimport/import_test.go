@@ -151,3 +151,36 @@ func TestCopyFilesDryRun(t *testing.T) {
 		t.Error("dest dir should not exist in dry run")
 	}
 }
+
+func TestCopyFileErrors(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "copyerr-test")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	// Test with non-existent source
+	err = copyFile(filepath.Join(tmpDir, "nonexistent.jpg"), filepath.Join(tmpDir, "dest.jpg"))
+	if err == nil {
+		t.Error("Expected error copying non-existent source, got nil")
+	}
+
+	// Test with read-only destination directory
+	srcFile := filepath.Join(tmpDir, "source.jpg")
+	if err := os.WriteFile(srcFile, []byte("photo"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	readOnlyDir := filepath.Join(tmpDir, "readonly")
+	if err := os.MkdirAll(readOnlyDir, 0555); err != nil {
+		t.Fatal(err)
+	}
+
+	err = copyFile(srcFile, filepath.Join(readOnlyDir, "dest.jpg"))
+	if err == nil {
+		t.Error("Expected error copying to read-only directory, got nil")
+	}
+
+	// Restore permissions for cleanup
+	os.Chmod(readOnlyDir, 0755)
+}

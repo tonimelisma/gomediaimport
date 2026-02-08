@@ -65,18 +65,6 @@ Note that command-line arguments will override settings in the configuration fil
 
 The corresponding configuration file option is `auto_eject_macos`.
 
-## Automatic macOS Launch
-
-You can automatically launch gomediaimport when a volume is inserted on macOS. You will need to install the separate `gomediaimport-launchagent` for that. It will keep a log of all inserted removable volumes, and run gomediaimport for each when they're inserted.
-
-To install and enable the macOS launch agent:
-* Open the separate Xcode project, build the binary and place it in your directory of choosing
-* Take the example file [net.melisma.gomediaimport-launchagent.plist](gomediaimport-launchagent/net.melisma.gomediaimport-launchagent.plist) and copy it into `~/Library/Launch Agents`
-* Edit the file and change ProgramArguments to refer to the path you placed the binary in
-* Run `launchctl load ~/Library/LaunchAgents/net.melisma.gomediaimport-launchagent.plist`
-
-You can `tail -f ~/.gomediaimport-launchagent.log` to see the log of inserted volumes.
-
 ## Supported File Types
 
 gomediaimport supports a wide range of media file types, categorized as follows:
@@ -134,7 +122,7 @@ gomediaimport is designed to efficiently import and organize media files. Here's
 
 3. **Metadata Extraction**: For each file, the program attempts to extract creation date and time from metadata using the `extractCreationDateTimeFromMetadata` function in `metadata.go`. It utilizes the `github.com/evanoberholster/imagemeta` package for this purpose.
 
-4. **Duplicate Detection**: The `isDuplicate` function in `file_operations.go` checks for duplicate files based on size and optionally CRC32 checksums.
+4. **Duplicate Detection**: The `isDuplicate` function in `file_operations.go` checks for duplicate files based on size and optionally xxHash64 checksums.
 
 5. **File Organization**: If enabled, files are organized into subdirectories based on their creation date.
 
@@ -170,11 +158,3 @@ gomediaimport is released under the MIT License. See the [LICENSE](LICENSE) file
 
 This software was designed by Toni Melisma and written by [Claude 3.5 Sonnet](https://claude.ai/) with the assistance of [continue.dev](https://continue.dev/). Writing this program cost exactly $5.00 in LLM costs.
 
-## Roadmap
-- Don't prompt for source directory if defined in config file
-- Handle metadata sidecar XML files for videos (copy with videos, delete originals after import)
-- Delete thumbnails after import
-- Logging
-- Multithreading
-- Verify integrity of all copied files
-- Handle multiple import directories

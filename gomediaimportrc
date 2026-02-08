@@ -18,9 +18,6 @@ rename_by_date_time: false
 # Use checksums to identify duplicates
 checksum_duplicates: false
 
-# Calculate checksums for imported files
-checksum_imports: false
-
 # Enable verbose output
 verbose: false
 

@@ -198,7 +198,7 @@ func TestIsDuplicate(t *testing.T) {
 	}
 }
 
-func TestCalculateCRC32(t *testing.T) {
+func TestCalculateXXHash(t *testing.T) {
 	tempDir, err := os.MkdirTemp("", "test")
 	if err != nil {
 		t.Fatalf("Failed to create temporary directory: %v", err)
@@ -212,19 +212,170 @@ func TestCalculateCRC32(t *testing.T) {
 		t.Fatalf("Failed to create test file: %v", err)
 	}
 
-	checksum, err := calculateCRC32(testFile)
+	checksum, err := calculateXXHash(testFile)
 	if err != nil {
-		t.Errorf("calculateCRC32 failed: %v", err)
+		t.Errorf("calculateXXHash failed: %v", err)
 	}
 
-	expectedChecksum := "57f4675d"
+	expectedChecksum := "0e6882304e9adbd5"
 	if checksum != expectedChecksum {
 		t.Errorf("Expected checksum %s, but got %s", expectedChecksum, checksum)
 	}
 
 	// Test with non-existent file
-	_, err = calculateCRC32(filepath.Join(tempDir, "non-existent.txt"))
+	_, err = calculateXXHash(filepath.Join(tempDir, "non-existent.txt"))
 	if err == nil {
 		t.Error("Expected error for non-existent file, but got none")
+	}
+}
+
+func TestSetFileTimes(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "setfiletimes-test")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	testFile := filepath.Join(tmpDir, "test.txt")
+	if err := os.WriteFile(testFile, []byte("hello"), 0644); err != nil {
+		t.Fatalf("Failed to write test file: %v", err)
+	}
+
+	targetTime := time.Date(2020, 6, 15, 12, 0, 0, 0, time.UTC)
+	if err := setFileTimes(testFile, targetTime); err != nil {
+		t.Fatalf("setFileTimes failed: %v", err)
+	}
+
+	info, err := os.Stat(testFile)
+	if err != nil {
+		t.Fatalf("Failed to stat file: %v", err)
+	}
+
+	if !info.ModTime().Equal(targetTime) {
+		t.Errorf("Expected mod time %v, got %v", targetTime, info.ModTime())
+	}
+}
+
+func TestIsDuplicateInPreviousFiles(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "dupcheck-test")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	content := []byte("duplicate content")
+	differentContent := []byte("different stuff!")
+
+	// Create source files
+	if err := os.WriteFile(filepath.Join(tmpDir, "file1.jpg"), content, 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(tmpDir, "file2.jpg"), content, 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(tmpDir, "file3.jpg"), differentContent, 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	now := time.Now()
+
+	// Test with checksum-disabled path (size+time match is enough)
+	files := []FileInfo{
+		{SourceName: "file1.jpg", SourceDir: tmpDir, Size: int64(len(content)), CreationDateTime: now},
+		{SourceName: "file2.jpg", SourceDir: tmpDir, Size: int64(len(content)), CreationDateTime: now},
+	}
+	sizeTimeIndex := map[fileSizeTime][]int{
+		{Size: int64(len(content)), Timestamp: now}: {0},
+	}
+
+	result := isDuplicateInPreviousFiles(&files, 1, false, sizeTimeIndex)
+	if !result {
+		t.Error("Expected duplicate without checksum (same size+time), got false")
+	}
+
+	// Test with checksum-enabled path — matching content
+	files[0].SourceChecksum = ""
+	files[1].SourceChecksum = ""
+	result = isDuplicateInPreviousFiles(&files, 1, true, sizeTimeIndex)
+	if !result {
+		t.Error("Expected duplicate with checksum (same content), got false")
+	}
+
+	// Test with checksum-enabled path — different content but same size
+	files2 := []FileInfo{
+		{SourceName: "file1.jpg", SourceDir: tmpDir, Size: int64(len(content)), CreationDateTime: now},
+		{SourceName: "file3.jpg", SourceDir: tmpDir, Size: int64(len(differentContent)), CreationDateTime: now},
+	}
+	sizeTimeIndex2 := map[fileSizeTime][]int{
+		{Size: int64(len(content)), Timestamp: now}:          {0},
+		{Size: int64(len(differentContent)), Timestamp: now}: {0}, // deliberately share index entry
+	}
+
+	result = isDuplicateInPreviousFiles(&files2, 1, true, sizeTimeIndex2)
+	if result {
+		t.Error("Expected no duplicate with checksum (different content), got true")
+	}
+
+	// Test with no matching index entry
+	emptyIndex := map[fileSizeTime][]int{}
+	result = isDuplicateInPreviousFiles(&files, 1, false, emptyIndex)
+	if result {
+		t.Error("Expected no duplicate with empty index, got true")
+	}
+}
+
+func TestCopyFilesActualCopy(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "actualcopy-test")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	srcDir := filepath.Join(tmpDir, "src")
+	destDir := filepath.Join(tmpDir, "dest")
+	if err := os.MkdirAll(srcDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	content1 := []byte("photo data one")
+	content2 := []byte("photo data two")
+	if err := os.WriteFile(filepath.Join(srcDir, "a.jpg"), content1, 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(srcDir, "b.jpg"), content2, 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	now := time.Now()
+	files := []FileInfo{
+		{SourceName: "a.jpg", SourceDir: srcDir, DestName: "a.jpg", DestDir: destDir, Size: int64(len(content1)), CreationDateTime: now},
+		{SourceName: "b.jpg", SourceDir: srcDir, DestName: "b.jpg", DestDir: destDir, Size: int64(len(content2)), CreationDateTime: now},
+	}
+
+	cfg := config{DryRun: false}
+	if err := copyFiles(files, cfg); err != nil {
+		t.Fatalf("copyFiles failed: %v", err)
+	}
+
+	// Verify files were copied
+	for i, fi := range files {
+		if fi.Status != StatusCopied {
+			t.Errorf("files[%d] status = %v, want StatusCopied", i, fi.Status)
+		}
+		destPath := filepath.Join(destDir, fi.DestName)
+		data, err := os.ReadFile(destPath)
+		if err != nil {
+			t.Errorf("Failed to read copied file %s: %v", destPath, err)
+			continue
+		}
+		var expected []byte
+		if i == 0 {
+			expected = content1
+		} else {
+			expected = content2
+		}
+		if string(data) != string(expected) {
+			t.Errorf("files[%d] content mismatch: got %q, want %q", i, data, expected)
+		}
 	}
 }
