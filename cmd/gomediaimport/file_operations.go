@@ -170,7 +170,7 @@ func isDuplicateInPreviousFiles(files *[]FileInfo, currentIndex int, checksumDup
 			if currentFile.SourceChecksum == "" {
 				checksum, err := calculateCRC32(filepath.Join(currentFile.SourceDir, currentFile.SourceName))
 				if err != nil {
-					// Handle error (e.g., log it)
+					fmt.Fprintf(os.Stderr, "Warning: failed to calculate checksum for %s: %v\n", filepath.Join(currentFile.SourceDir, currentFile.SourceName), err)
 					return false
 				}
 				currentFile.SourceChecksum = checksum
@@ -179,7 +179,7 @@ func isDuplicateInPreviousFiles(files *[]FileInfo, currentIndex int, checksumDup
 			if previousFile.SourceChecksum == "" {
 				checksum, err := calculateCRC32(filepath.Join(previousFile.SourceDir, previousFile.SourceName))
 				if err != nil {
-					// Handle error (e.g., log it)
+					fmt.Fprintf(os.Stderr, "Warning: failed to calculate checksum for %s: %v\n", filepath.Join(previousFile.SourceDir, previousFile.SourceName), err)
 					return false
 				}
 				previousFile.SourceChecksum = checksum
@@ -227,14 +227,14 @@ func isDuplicate(file *FileInfo, destPath string, checksumDuplicates bool) bool 
 	if checksumDuplicates {
 		srcChecksum, err := calculateCRC32(filepath.Join(file.SourceDir, file.SourceName))
 		if err != nil {
-			// Handle error (e.g., log it)
+			fmt.Fprintf(os.Stderr, "Warning: failed to calculate checksum for %s: %v\n", filepath.Join(file.SourceDir, file.SourceName), err)
 			return false
 		}
 		file.SourceChecksum = srcChecksum
 
 		destChecksum, err := calculateCRC32(destPath)
 		if err != nil {
-			// Handle error (e.g., log it)
+			fmt.Fprintf(os.Stderr, "Warning: failed to calculate checksum for %s: %v\n", destPath, err)
 			return false
 		}
 

@@ -167,7 +167,7 @@ func copyFiles(files []FileInfo, cfg config) error {
 			} else {
 				// Set file times
 				if err := setFileTimes(destPath, files[i].CreationDateTime); err != nil {
-					fmt.Printf("Warning: Failed to set file times for %s: %v\n", destPath, err)
+					fmt.Fprintf(os.Stderr, "Warning: Failed to set file times for %s: %v\n", destPath, err)
 				}
 				files[i].Status = StatusCopied
 			}
