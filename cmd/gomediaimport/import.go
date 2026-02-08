@@ -60,6 +60,7 @@ func importMedia(cfg config) error {
 	}
 
 	// Process each file
+	sizeTimeIndex := make(map[fileSizeTime][]int)
 	for i := range files {
 		// Set destination directory
 		if cfg.OrganizeByDate {
@@ -77,10 +78,14 @@ func importMedia(cfg config) error {
 		}
 
 		// Set final destination filename
-		if err := setFinalDestinationFilename(&files, i, initialFilename, cfg); err != nil {
+		if err := setFinalDestinationFilename(&files, i, initialFilename, cfg, sizeTimeIndex); err != nil {
 			files[i].Status = StatusUnnamable
 			continue
 		}
+
+		// Add to index for subsequent duplicate detection
+		key := fileSizeTime{Size: files[i].Size, Timestamp: files[i].CreationDateTime}
+		sizeTimeIndex[key] = append(sizeTimeIndex[key], i)
 	}
 
 	// Copy files

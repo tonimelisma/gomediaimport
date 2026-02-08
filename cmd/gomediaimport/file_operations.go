@@ -96,7 +96,13 @@ func enumerateFiles(sourceDir string, skipThumbnails bool) ([]FileInfo, error) {
 	return files, nil
 }
 
-func setFinalDestinationFilename(files *[]FileInfo, currentIndex int, initialFilename string, cfg config) error {
+// fileSizeTime is a composite key for the duplicate detection index
+type fileSizeTime struct {
+	Size      int64
+	Timestamp time.Time
+}
+
+func setFinalDestinationFilename(files *[]FileInfo, currentIndex int, initialFilename string, cfg config, sizeTimeIndex map[fileSizeTime][]int) error {
 	file := &(*files)[currentIndex]
 	baseDir := file.DestDir
 	ext := filepath.Ext(initialFilename)
@@ -111,7 +117,7 @@ func setFinalDestinationFilename(files *[]FileInfo, currentIndex int, initialFil
 
 	initialFilename = baseFilename + ext
 
-	if isDuplicateInPreviousFiles(files, currentIndex, cfg.ChecksumDuplicates) {
+	if isDuplicateInPreviousFiles(files, currentIndex, cfg.ChecksumDuplicates, sizeTimeIndex) {
 		file.Status = StatusPreExisting
 		file.DestName = initialFilename
 		return nil
@@ -155,39 +161,42 @@ func setFinalDestinationFilename(files *[]FileInfo, currentIndex int, initialFil
 	return fmt.Errorf("couldn't find a unique filename after 999,999 attempts")
 }
 
-func isDuplicateInPreviousFiles(files *[]FileInfo, currentIndex int, checksumDuplicates bool) bool {
+func isDuplicateInPreviousFiles(files *[]FileInfo, currentIndex int, checksumDuplicates bool, sizeTimeIndex map[fileSizeTime][]int) bool {
 	currentFile := &(*files)[currentIndex]
+	key := fileSizeTime{Size: currentFile.Size, Timestamp: currentFile.CreationDateTime}
 
-	for i := 0; i < currentIndex; i++ {
+	indices, ok := sizeTimeIndex[key]
+	if !ok {
+		return false
+	}
+
+	if !checksumDuplicates {
+		return true
+	}
+
+	// Calculate current file checksum if needed
+	if currentFile.SourceChecksum == "" {
+		checksum, err := calculateCRC32(filepath.Join(currentFile.SourceDir, currentFile.SourceName))
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to calculate checksum for %s: %v\n", filepath.Join(currentFile.SourceDir, currentFile.SourceName), err)
+			return false
+		}
+		currentFile.SourceChecksum = checksum
+	}
+
+	for _, i := range indices {
 		previousFile := &(*files)[i]
-
-		if currentFile.CreationDateTime == previousFile.CreationDateTime && currentFile.Size == previousFile.Size {
-			if !checksumDuplicates {
-				return true
+		if previousFile.SourceChecksum == "" {
+			checksum, err := calculateCRC32(filepath.Join(previousFile.SourceDir, previousFile.SourceName))
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Warning: failed to calculate checksum for %s: %v\n", filepath.Join(previousFile.SourceDir, previousFile.SourceName), err)
+				continue
 			}
+			previousFile.SourceChecksum = checksum
+		}
 
-			// Calculate and store checksums if needed
-			if currentFile.SourceChecksum == "" {
-				checksum, err := calculateCRC32(filepath.Join(currentFile.SourceDir, currentFile.SourceName))
-				if err != nil {
-					fmt.Fprintf(os.Stderr, "Warning: failed to calculate checksum for %s: %v\n", filepath.Join(currentFile.SourceDir, currentFile.SourceName), err)
-					return false
-				}
-				currentFile.SourceChecksum = checksum
-			}
-
-			if previousFile.SourceChecksum == "" {
-				checksum, err := calculateCRC32(filepath.Join(previousFile.SourceDir, previousFile.SourceName))
-				if err != nil {
-					fmt.Fprintf(os.Stderr, "Warning: failed to calculate checksum for %s: %v\n", filepath.Join(previousFile.SourceDir, previousFile.SourceName), err)
-					return false
-				}
-				previousFile.SourceChecksum = checksum
-			}
-
-			if currentFile.SourceChecksum == previousFile.SourceChecksum {
-				return true
-			}
+		if currentFile.SourceChecksum == previousFile.SourceChecksum {
+			return true
 		}
 	}
 
@@ -225,12 +234,16 @@ func isDuplicate(file *FileInfo, destPath string, checksumDuplicates bool) bool 
 	}
 
 	if checksumDuplicates {
-		srcChecksum, err := calculateCRC32(filepath.Join(file.SourceDir, file.SourceName))
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Warning: failed to calculate checksum for %s: %v\n", filepath.Join(file.SourceDir, file.SourceName), err)
-			return false
+		srcChecksum := file.SourceChecksum
+		if srcChecksum == "" {
+			var err error
+			srcChecksum, err = calculateCRC32(filepath.Join(file.SourceDir, file.SourceName))
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Warning: failed to calculate checksum for %s: %v\n", filepath.Join(file.SourceDir, file.SourceName), err)
+				return false
+			}
+			file.SourceChecksum = srcChecksum
 		}
-		file.SourceChecksum = srcChecksum
 
 		destChecksum, err := calculateCRC32(destPath)
 		if err != nil {

@@ -3,8 +3,8 @@ package main
 import (
 	"io/ioutil"
 	"os"
-	"path/filepath"
 	"os/exec"
+	"path/filepath"
 	"reflect"
 	"testing"
 	"time"
@@ -20,7 +20,7 @@ func TestEjectDriveMacOS_CommandConstruction(t *testing.T) {
 	cmd := constructEjectCommand(sourceDir)
 
 	expectedPath := "diskutil"
-	if cmd.Path != expectedPath {
+	if filepath.Base(cmd.Path) != expectedPath {
 		t.Errorf("Expected command path %s, but got %s", expectedPath, cmd.Path)
 	}
 
@@ -120,8 +120,9 @@ func TestSetFinalDestinationFilename(t *testing.T) {
 	}
 
 	initialFilename := "20230501_103000.jpg"
+	sizeTimeIndex := make(map[fileSizeTime][]int)
 
-	err = setFinalDestinationFilename(&files, 0, initialFilename, cfg)
+	err = setFinalDestinationFilename(&files, 0, initialFilename, cfg, sizeTimeIndex)
 	if err != nil {
 		t.Errorf("setFinalDestinationFilename failed: %v", err)
 	}
@@ -136,7 +137,7 @@ func TestSetFinalDestinationFilename(t *testing.T) {
 		t.Fatalf("Failed to create test file: %v", err)
 	}
 
-	err = setFinalDestinationFilename(&files, 0, initialFilename, cfg)
+	err = setFinalDestinationFilename(&files, 0, initialFilename, cfg, sizeTimeIndex)
 	if err != nil {
 		t.Errorf("setFinalDestinationFilename failed: %v", err)
 	}

@@ -114,9 +114,10 @@ func TestValidateConfig(t *testing.T) {
 	}
 	defer os.RemoveAll(tmpDir)
 
+	destDir := filepath.Join(tmpDir, "dest")
 	cfg := &config{
 		SourceDir: tmpDir,
-		DestDir:   "/path/to/dest",
+		DestDir:   destDir,
 	}
 	err = validateConfig(cfg)
 	if err != nil {
@@ -140,10 +141,28 @@ func TestValidateConfig(t *testing.T) {
 
 	// Test with non-existent source directory
 	cfg.SourceDir = "/non/existent/directory"
-	cfg.DestDir = "/path/to/dest"
+	cfg.DestDir = destDir
 	err = validateConfig(cfg)
 	if err == nil {
 		t.Fatalf("validateConfig should return error for non-existent source directory")
+	}
+}
+
+func TestValidateConfigDestination(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "source")
+	if err != nil {
+		t.Fatalf("Failed to create temp directory: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	// Dest parent doesn't exist
+	cfg := &config{
+		SourceDir: tmpDir,
+		DestDir:   "/non/existent/parent/dest",
+	}
+	err = validateConfig(cfg)
+	if err == nil {
+		t.Fatalf("validateConfig should return error for non-existent destination parent")
 	}
 }
 

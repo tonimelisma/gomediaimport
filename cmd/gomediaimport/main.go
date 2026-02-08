@@ -94,6 +94,12 @@ func validateConfig(cfg *config) error {
 		return fmt.Errorf("source directory does not exist: %s", cfg.SourceDir)
 	}
 
+	// Check if destination directory's parent exists
+	destParent := filepath.Dir(cfg.DestDir)
+	if _, err := os.Stat(destParent); os.IsNotExist(err) {
+		return fmt.Errorf("destination parent directory does not exist: %s", destParent)
+	}
+
 	return nil
 }
 
