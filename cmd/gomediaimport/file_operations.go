@@ -4,8 +4,9 @@ import (
 	"fmt"
 	"hash/crc32"
 	"io"
+	"io/fs"
 	"os"
-	"os/exec" // Added for ejectDriveMacOS
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -25,11 +26,11 @@ func enumerateFiles(sourceDir string, skipThumbnails bool) ([]FileInfo, error) {
 	}
 
 	// Walk through the directory
-	err = filepath.Walk(sourceDir, func(path string, info os.FileInfo, err error) error {
+	err = filepath.WalkDir(sourceDir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			if os.IsPermission(err) {
 				fmt.Printf("Warning: Permission denied accessing %s, skipping...\n", path)
-				if info != nil && info.IsDir() {
+				if d != nil && d.IsDir() {
 					return filepath.SkipDir
 				}
 				return nil
@@ -37,17 +38,27 @@ func enumerateFiles(sourceDir string, skipThumbnails bool) ([]FileInfo, error) {
 			return fmt.Errorf("error accessing path %q: %w", path, err)
 		}
 
+		// Skip symlinks
+		if d.Type()&fs.ModeSymlink != 0 {
+			return nil
+		}
+
 		// Skip directories and files containing "THMBNL" if skipThumbnails is true
 		if skipThumbnails && strings.Contains(path, "THMBNL") {
-			if info.IsDir() {
+			if d.IsDir() {
 				return filepath.SkipDir
 			}
 			return nil
 		}
 
 		// Skip directories
-		if info.IsDir() {
+		if d.IsDir() {
 			return nil
+		}
+
+		info, err := d.Info()
+		if err != nil {
+			return fmt.Errorf("error getting info for %q: %w", path, err)
 		}
 
 		// Create FileInfo struct for each file
