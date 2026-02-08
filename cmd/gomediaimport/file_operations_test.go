@@ -1,7 +1,6 @@
 package main
 
 import (
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -32,7 +31,7 @@ func TestEjectDriveMacOS_CommandConstruction(t *testing.T) {
 
 func TestEnumerateFiles(t *testing.T) {
 	// Create temporary directory for testing
-	tempDir, err := ioutil.TempDir("", "test")
+	tempDir, err := os.MkdirTemp("", "test")
 	if err != nil {
 		t.Fatalf("Failed to create temporary directory: %v", err)
 	}
@@ -83,7 +82,7 @@ func TestEnumerateFiles(t *testing.T) {
 	}
 
 	// Test with empty source directory
-	emptyDir, err := ioutil.TempDir("", "empty")
+	emptyDir, err := os.MkdirTemp("", "empty")
 	if err != nil {
 		t.Fatalf("Failed to create empty temporary directory: %v", err)
 	}
@@ -99,7 +98,7 @@ func TestEnumerateFiles(t *testing.T) {
 }
 
 func TestSetFinalDestinationFilename(t *testing.T) {
-	tempDir, err := ioutil.TempDir("", "test")
+	tempDir, err := os.MkdirTemp("", "test")
 	if err != nil {
 		t.Fatalf("Failed to create temporary directory: %v", err)
 	}
@@ -149,7 +148,7 @@ func TestSetFinalDestinationFilename(t *testing.T) {
 }
 
 func TestIsDuplicate(t *testing.T) {
-	tempDir, err := ioutil.TempDir("", "test")
+	tempDir, err := os.MkdirTemp("", "test")
 	if err != nil {
 		t.Fatalf("Failed to create temporary directory: %v", err)
 	}
@@ -161,15 +160,15 @@ func TestIsDuplicate(t *testing.T) {
 	differentFile := filepath.Join(tempDir, "different.txt")
 
 	content := []byte("test content")
-	err = ioutil.WriteFile(sourceFile, content, 0644)
+	err = os.WriteFile(sourceFile, content, 0644)
 	if err != nil {
 		t.Fatalf("Failed to create source file: %v", err)
 	}
-	err = ioutil.WriteFile(duplicateFile, content, 0644)
+	err = os.WriteFile(duplicateFile, content, 0644)
 	if err != nil {
 		t.Fatalf("Failed to create duplicate file: %v", err)
 	}
-	err = ioutil.WriteFile(differentFile, []byte("different content"), 0644)
+	err = os.WriteFile(differentFile, []byte("different content"), 0644)
 	if err != nil {
 		t.Fatalf("Failed to create different file: %v", err)
 	}
@@ -200,7 +199,7 @@ func TestIsDuplicate(t *testing.T) {
 }
 
 func TestCalculateCRC32(t *testing.T) {
-	tempDir, err := ioutil.TempDir("", "test")
+	tempDir, err := os.MkdirTemp("", "test")
 	if err != nil {
 		t.Fatalf("Failed to create temporary directory: %v", err)
 	}
@@ -208,7 +207,7 @@ func TestCalculateCRC32(t *testing.T) {
 
 	testFile := filepath.Join(tempDir, "test.txt")
 	content := []byte("test content")
-	err = ioutil.WriteFile(testFile, content, 0644)
+	err = os.WriteFile(testFile, content, 0644)
 	if err != nil {
 		t.Fatalf("Failed to create test file: %v", err)
 	}

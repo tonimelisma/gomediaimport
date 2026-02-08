@@ -188,6 +188,18 @@ func TestRun(t *testing.T) {
 	}
 }
 
+func TestRunInvalidSource(t *testing.T) {
+	oldArgs := os.Args
+	defer func() { os.Args = oldArgs }()
+
+	os.Args = []string{"cmd", "/non/existent/source/dir"}
+
+	err := run()
+	if err == nil {
+		t.Error("run() should return error for non-existent source directory")
+	}
+}
+
 func TestCopyFile(t *testing.T) {
 	tmpDir, err := os.MkdirTemp("", "copyfile-test")
 	if err != nil {
