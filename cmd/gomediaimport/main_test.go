@@ -152,11 +152,8 @@ func TestValidateConfig(t *testing.T) {
 	}
 }
 
-// TestMain tests the main function
-func TestMain(t *testing.T) {
-	// This test is more complex and might require some refactoring of the main function
-	// to make it more testable. For now, we'll just test a simple case.
-
+// TestRun tests the run function
+func TestRun(t *testing.T) {
 	// Save original args and restore them after the test
 	oldArgs := os.Args
 	defer func() { os.Args = oldArgs }()
@@ -171,9 +168,69 @@ func TestMain(t *testing.T) {
 	// Set up test arguments
 	os.Args = []string{"cmd", tmpDir}
 
-	// TODO: Capture stdout to check for expected output
-	// For now, we're just checking that main() doesn't panic
-	main()
+	// Test that run() completes without error
+	if err := run(); err != nil {
+		t.Errorf("run() returned error: %v", err)
+	}
+}
+
+func TestCopyFile(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "copyfile-test")
+	if err != nil {
+		t.Fatalf("Failed to create temp directory: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	srcPath := filepath.Join(tmpDir, "source.txt")
+	dstPath := filepath.Join(tmpDir, "dest.txt")
+	content := []byte("hello world test content")
+
+	if err := os.WriteFile(srcPath, content, 0644); err != nil {
+		t.Fatalf("Failed to write source file: %v", err)
+	}
+
+	if err := copyFile(srcPath, dstPath); err != nil {
+		t.Fatalf("copyFile failed: %v", err)
+	}
+
+	got, err := os.ReadFile(dstPath)
+	if err != nil {
+		t.Fatalf("Failed to read dest file: %v", err)
+	}
+
+	if string(got) != string(content) {
+		t.Errorf("copied content mismatch: got %q, want %q", got, content)
+	}
+}
+
+func TestExists(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "exists-test")
+	if err != nil {
+		t.Fatalf("Failed to create temp directory: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	existingFile := filepath.Join(tmpDir, "exists.txt")
+	if err := os.WriteFile(existingFile, []byte("data"), 0644); err != nil {
+		t.Fatalf("Failed to write file: %v", err)
+	}
+
+	found, err := exists(existingFile)
+	if err != nil {
+		t.Fatalf("exists() returned error for existing file: %v", err)
+	}
+	if !found {
+		t.Error("exists() returned false for existing file")
+	}
+
+	missingFile := filepath.Join(tmpDir, "missing.txt")
+	found, err = exists(missingFile)
+	if err != nil {
+		t.Fatalf("exists() returned error for missing file: %v", err)
+	}
+	if found {
+		t.Error("exists() returned true for missing file")
+	}
 }
 
 // Additional tests

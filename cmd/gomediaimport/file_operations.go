@@ -107,7 +107,11 @@ func setFinalDestinationFilename(files *[]FileInfo, currentIndex int, initialFil
 	}
 
 	fullPath := filepath.Join(baseDir, initialFilename)
-	if !exists(fullPath) && !isNameTakenByPreviousFile(files, currentIndex, initialFilename) {
+	fileExists, err := exists(fullPath)
+	if err != nil {
+		return fmt.Errorf("error checking file %s: %w", fullPath, err)
+	}
+	if !fileExists && !isNameTakenByPreviousFile(files, currentIndex, initialFilename) {
 		file.DestName = initialFilename
 		return nil
 	}
@@ -122,7 +126,11 @@ func setFinalDestinationFilename(files *[]FileInfo, currentIndex int, initialFil
 		suffix := fmt.Sprintf("_%03d", i) // Ensure three-digit suffix
 		newFilename := baseFilename + suffix + ext
 		fullPath = filepath.Join(baseDir, newFilename)
-		if !exists(fullPath) && !isNameTakenByPreviousFile(files, currentIndex, newFilename) {
+		fileExists, err = exists(fullPath)
+		if err != nil {
+			return fmt.Errorf("error checking file %s: %w", fullPath, err)
+		}
+		if !fileExists && !isNameTakenByPreviousFile(files, currentIndex, newFilename) {
 			file.DestName = newFilename
 			return nil
 		}
@@ -184,9 +192,15 @@ func isNameTakenByPreviousFile(files *[]FileInfo, currentIndex int, proposedName
 	return false
 }
 
-func exists(destPath string) bool {
+func exists(destPath string) (bool, error) {
 	_, err := os.Stat(destPath)
-	return !os.IsNotExist(err)
+	if err == nil {
+		return true, nil
+	}
+	if os.IsNotExist(err) {
+		return false, nil
+	}
+	return false, err
 }
 
 func isDuplicate(file *FileInfo, destPath string, checksumDuplicates bool) bool {

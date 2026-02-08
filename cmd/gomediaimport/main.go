@@ -99,14 +99,13 @@ func validateConfig(cfg *config) error {
 	return nil
 }
 
-func main() {
+func run() error {
 	// Create an instance of the config struct
 	cfg := config{}
 
 	// Set default values first
 	if err := setDefaults(&cfg); err != nil {
-		fmt.Printf("Error setting defaults: %v\n", err)
-		return
+		return fmt.Errorf("setting defaults: %w", err)
 	}
 
 	// Parse command-line arguments
@@ -119,8 +118,7 @@ func main() {
 
 	// Parse configuration file
 	if err := parseConfigFile(&cfg); err != nil {
-		fmt.Printf("Error parsing config file: %v\n", err)
-		return
+		return fmt.Errorf("parsing config file: %w", err)
 	}
 
 	// Override with command-line arguments
@@ -160,13 +158,20 @@ func main() {
 
 	// Validate the configuration
 	if err := validateConfig(&cfg); err != nil {
-		fmt.Printf("Error: %v\n", err)
-		return
+		return fmt.Errorf("invalid configuration: %w", err)
 	}
 
 	// Call the importMedia function
 	if err := importMedia(cfg); err != nil {
-		fmt.Printf("Error importing media: %v\n", err)
-		return
+		return fmt.Errorf("importing media: %w", err)
+	}
+
+	return nil
+}
+
+func main() {
+	if err := run(); err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		os.Exit(1)
 	}
 }

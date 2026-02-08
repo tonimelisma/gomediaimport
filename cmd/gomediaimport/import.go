@@ -151,6 +151,9 @@ func copyFiles(files []FileInfo, cfg config) error {
 			continue
 		}
 
+		srcPath := filepath.Join(files[i].SourceDir, files[i].SourceName)
+		destPath := filepath.Join(files[i].DestDir, files[i].DestName)
+
 		// Create destination directory if it doesn't exist
 		if !cfg.DryRun {
 			if err := os.MkdirAll(files[i].DestDir, 0755); err != nil {
@@ -159,12 +162,13 @@ func copyFiles(files []FileInfo, cfg config) error {
 			}
 
 			// Copy the file
-			if err := copyFile(files[i].SourceDir+"/"+files[i].SourceName, files[i].DestDir+"/"+files[i].DestName); err != nil {
+			if err := copyFile(srcPath, destPath); err != nil {
+				os.Remove(destPath)
 				files[i].Status = StatusFailed
 			} else {
 				// Set file times
-				if err := setFileTimes(files[i].DestDir+"/"+files[i].DestName, files[i].CreationDateTime); err != nil {
-					fmt.Printf("Warning: Failed to set file times for %s: %v\n", files[i].DestDir+"/"+files[i].DestName, err)
+				if err := setFileTimes(destPath, files[i].CreationDateTime); err != nil {
+					fmt.Printf("Warning: Failed to set file times for %s: %v\n", destPath, err)
 				}
 				files[i].Status = StatusCopied
 			}
@@ -173,20 +177,26 @@ func copyFiles(files []FileInfo, cfg config) error {
 		copiedSize += files[i].Size
 
 		if cfg.Verbose {
-			progress := float64(copiedSize) / float64(totalSize)
-			elapsed := time.Since(startTime)
-			estimatedTotal := time.Duration(float64(elapsed) / progress)
-			remaining := estimatedTotal - elapsed
+			if totalSize > 0 {
+				progress := float64(copiedSize) / float64(totalSize)
+				elapsed := time.Since(startTime)
+				var remaining time.Duration
+				if progress > 0 {
+					estimatedTotal := time.Duration(float64(elapsed) / progress)
+					remaining = estimatedTotal - elapsed
+				}
 
-			fmt.Printf("%s -> %s (%s/%s, %d%%, %s/%s)\n",
-				files[i].SourceDir+"/"+files[i].SourceName,
-				files[i].DestDir+"/"+files[i].DestName,
-				humanReadableSize(copiedSize),
-				humanReadableSize(totalSize),
-				int(progress*100),
-				humanReadableDuration(remaining),
-				humanReadableDuration(estimatedTotal),
-			)
+				fmt.Printf("%s -> %s (%s/%s, %d%%, %s remaining)\n",
+					srcPath,
+					destPath,
+					humanReadableSize(copiedSize),
+					humanReadableSize(totalSize),
+					int(progress*100),
+					humanReadableDuration(remaining),
+				)
+			} else {
+				fmt.Printf("%s -> %s\n", srcPath, destPath)
+			}
 		}
 	}
 
@@ -200,14 +210,33 @@ func copyFile(src, dst string) error {
 	}
 	defer sourceFile.Close()
 
+	sourceInfo, err := sourceFile.Stat()
+	if err != nil {
+		return err
+	}
+
 	destFile, err := os.Create(dst)
 	if err != nil {
 		return err
 	}
-	defer destFile.Close()
 
-	_, err = io.Copy(destFile, sourceFile)
-	return err
+	written, err := io.Copy(destFile, sourceFile)
+	if err != nil {
+		destFile.Close()
+		return err
+	}
+
+	if written != sourceInfo.Size() {
+		destFile.Close()
+		return fmt.Errorf("incomplete copy: wrote %d of %d bytes", written, sourceInfo.Size())
+	}
+
+	if err := destFile.Sync(); err != nil {
+		destFile.Close()
+		return err
+	}
+
+	return destFile.Close()
 }
 
 func deleteOriginalFiles(files []FileInfo, cfg config) error {
