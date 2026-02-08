@@ -71,6 +71,8 @@ var sidecarDefaults = map[string]SidecarAction{
 	"aae": SidecarDelete,
 	"lrf": SidecarDelete,
 	"srt": SidecarCopy,
+	"mpl": SidecarDelete,
+	"cpi": SidecarDelete,
 }
 
 // isSidecarExtension returns true if the extension (without dot, lowercase) is a known sidecar type

@@ -3,6 +3,7 @@ module github.com/tonimelisma/gomediaimport
 go 1.24.0
 
 require (
+	github.com/abema/go-mp4 v1.4.1
 	github.com/alexflint/go-arg v1.6.1
 	github.com/cespare/xxhash/v2 v2.3.0
 	github.com/evanoberholster/imagemeta v0.3.1
@@ -11,6 +12,7 @@ require (
 
 require (
 	github.com/alexflint/go-scalar v1.2.0 // indirect
+	github.com/google/uuid v1.1.2 // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/philhofer/fwd v1.2.0 // indirect
