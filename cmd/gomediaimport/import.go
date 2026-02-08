@@ -10,6 +10,17 @@ import (
 	"time"
 )
 
+// FileStatus represents the status of a file during import
+type FileStatus string
+
+const (
+	StatusCopied                  FileStatus = "copied"
+	StatusPreExisting             FileStatus = "pre-existing"
+	StatusFailed                  FileStatus = "failed"
+	StatusUnnamable               FileStatus = "unnamable"
+	StatusDirectoryCreationFailed FileStatus = "directory creation failed"
+)
+
 // FileInfo represents information about each file being imported
 type FileInfo struct {
 	SourceName       string
@@ -22,7 +33,7 @@ type FileInfo struct {
 	Size             int64
 	MediaCategory    MediaCategory
 	FileType         FileType
-	Status           string
+	Status           FileStatus
 }
 
 // importMedia handles the main functionality of the program
@@ -68,7 +79,7 @@ func importMedia(cfg config) error {
 
 		// Set final destination filename
 		if err := setFinalDestinationFilename(&files, i, initialFilename, cfg); err != nil {
-			files[i].Status = "unnamable"
+			files[i].Status = StatusUnnamable
 			continue
 		}
 	}
@@ -89,11 +100,11 @@ func importMedia(cfg config) error {
 		for _, file := range files {
 			total++
 			switch file.Status {
-			case "pre-existing":
+			case StatusPreExisting:
 				preExisting++
-			case "failed":
+			case StatusFailed:
 				failed++
-			case "copied":
+			case StatusCopied:
 				copied++
 			}
 		}
@@ -123,7 +134,7 @@ func importMedia(cfg config) error {
 func copyFiles(files []FileInfo, cfg config) error {
 	var totalSize int64
 	for _, file := range files {
-		if file.Status != "unnamable" && file.Status != "pre-existing" {
+		if file.Status != StatusUnnamable && file.Status != StatusPreExisting {
 			totalSize += file.Size
 		}
 	}
@@ -136,26 +147,26 @@ func copyFiles(files []FileInfo, cfg config) error {
 	startTime := time.Now()
 
 	for i := range files {
-		if files[i].Status == "unnamable" || files[i].Status == "pre-existing" {
+		if files[i].Status == StatusUnnamable || files[i].Status == StatusPreExisting {
 			continue
 		}
 
 		// Create destination directory if it doesn't exist
 		if !cfg.DryRun {
 			if err := os.MkdirAll(files[i].DestDir, 0755); err != nil {
-				files[i].Status = "directory creation failed"
+				files[i].Status = StatusDirectoryCreationFailed
 				return fmt.Errorf("failed to create directory %s: %w", files[i].DestDir, err)
 			}
 
 			// Copy the file
 			if err := copyFile(files[i].SourceDir+"/"+files[i].SourceName, files[i].DestDir+"/"+files[i].DestName); err != nil {
-				files[i].Status = "failed"
+				files[i].Status = StatusFailed
 			} else {
 				// Set file times
 				if err := setFileTimes(files[i].DestDir+"/"+files[i].DestName, files[i].CreationDateTime); err != nil {
 					fmt.Printf("Warning: Failed to set file times for %s: %v\n", files[i].DestDir+"/"+files[i].DestName, err)
 				}
-				files[i].Status = "copied"
+				files[i].Status = StatusCopied
 			}
 		}
 
@@ -208,7 +219,7 @@ func deleteOriginalFiles(files []FileInfo, cfg config) error {
 	var deletedSize int64
 
 	for _, file := range files {
-		if file.Status == "copied" || file.Status == "pre-existing" {
+		if file.Status == StatusCopied || file.Status == StatusPreExisting {
 			sourcePath := filepath.Join(file.SourceDir, file.SourceName)
 			if !cfg.DryRun {
 				err := os.Remove(sourcePath)

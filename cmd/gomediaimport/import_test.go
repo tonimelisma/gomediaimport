@@ -5,34 +5,44 @@ import (
 	"time"
 )
 
-func TestFileInfo(t *testing.T) {
-	// Test FileInfo struct
-	now := time.Now()
-	fi := FileInfo{
-		SourceName:       "test.jpg",
-		CreationDateTime: now,
-		Size:             1024,
-		MediaCategory:    MediaCategory("Image"),
-		FileType:         FileType("JPEG"),
+func TestHumanReadableSize(t *testing.T) {
+	tests := []struct {
+		size     int64
+		expected string
+	}{
+		{0, "0 B"},
+		{1, "1 B"},
+		{1023, "1023 B"},
+		{1024, "1.0 KB"},
+		{1536, "1.5 KB"},
+		{1048576, "1.0 MB"},
+		{1073741824, "1.0 GB"},
 	}
 
-	if fi.SourceName != "test.jpg" {
-		t.Errorf("Expected SourceName 'test.jpg', but got '%s'", fi.SourceName)
+	for _, tt := range tests {
+		result := humanReadableSize(tt.size)
+		if result != tt.expected {
+			t.Errorf("humanReadableSize(%d) = %q, want %q", tt.size, result, tt.expected)
+		}
+	}
+}
+
+func TestHumanReadableDuration(t *testing.T) {
+	tests := []struct {
+		duration time.Duration
+		expected string
+	}{
+		{0, "0s"},
+		{5 * time.Second, "5s"},
+		{65 * time.Second, "1m5s"},
+		{3661 * time.Second, "1h1m1s"},
+		{90061 * time.Second, "1d1h1m1s"},
 	}
 
-	if fi.Size != 1024 {
-		t.Errorf("Expected Size 1024, but got %d", fi.Size)
-	}
-
-	if fi.MediaCategory != MediaCategory("Image") {
-		t.Errorf("Expected MediaCategory Image, but got %v", fi.MediaCategory)
-	}
-
-	if fi.FileType != FileType("JPEG") {
-		t.Errorf("Expected FileType JPEG, but got %v", fi.FileType)
-	}
-
-	if !fi.CreationDateTime.Equal(now) {
-		t.Errorf("Expected CreationDateTime %v, but got %v", now, fi.CreationDateTime)
+	for _, tt := range tests {
+		result := humanReadableDuration(tt.duration)
+		if result != tt.expected {
+			t.Errorf("humanReadableDuration(%v) = %q, want %q", tt.duration, result, tt.expected)
+		}
 	}
 }

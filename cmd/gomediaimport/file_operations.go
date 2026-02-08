@@ -101,7 +101,7 @@ func setFinalDestinationFilename(files *[]FileInfo, currentIndex int, initialFil
 	initialFilename = baseFilename + ext
 
 	if isDuplicateInPreviousFiles(files, currentIndex, cfg.ChecksumDuplicates) {
-		file.Status = "pre-existing"
+		file.Status = StatusPreExisting
 		file.DestName = initialFilename
 		return nil
 	}
@@ -113,7 +113,7 @@ func setFinalDestinationFilename(files *[]FileInfo, currentIndex int, initialFil
 	}
 
 	if isDuplicate(file, fullPath, cfg.ChecksumDuplicates) {
-		file.Status = "pre-existing"
+		file.Status = StatusPreExisting
 		file.DestName = initialFilename
 		return nil
 	}
@@ -127,7 +127,7 @@ func setFinalDestinationFilename(files *[]FileInfo, currentIndex int, initialFil
 			return nil
 		}
 		if isDuplicate(file, fullPath, cfg.ChecksumDuplicates) {
-			file.Status = "pre-existing"
+			file.Status = StatusPreExisting
 			file.DestName = newFilename
 			return nil
 		}
