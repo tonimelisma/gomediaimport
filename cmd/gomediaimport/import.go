@@ -302,7 +302,7 @@ func copyFiles(files []FileInfo, cfg config) error {
 					}
 
 					if err := copyFile(srcPath, destPath); err != nil {
-						os.Remove(destPath)
+						_ = os.Remove(destPath)
 						mu.Lock()
 						files[i].Status = StatusFailed
 						fmt.Fprintf(os.Stderr, "Error: failed to copy %s: %v\n", srcPath, err)
@@ -385,7 +385,7 @@ func copyFile(src, dst string) error {
 	if err != nil {
 		return err
 	}
-	defer sourceFile.Close()
+	defer func() { _ = sourceFile.Close() }()
 
 	sourceInfo, err := sourceFile.Stat()
 	if err != nil {
@@ -399,17 +399,17 @@ func copyFile(src, dst string) error {
 
 	written, err := io.Copy(destFile, sourceFile)
 	if err != nil {
-		destFile.Close()
+		_ = destFile.Close()
 		return err
 	}
 
 	if written != sourceInfo.Size() {
-		destFile.Close()
+		_ = destFile.Close()
 		return fmt.Errorf("incomplete copy: wrote %d of %d bytes", written, sourceInfo.Size())
 	}
 
 	if err := destFile.Sync(); err != nil {
-		destFile.Close()
+		_ = destFile.Close()
 		return err
 	}
 

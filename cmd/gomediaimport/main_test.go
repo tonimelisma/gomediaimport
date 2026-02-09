@@ -239,7 +239,9 @@ func TestRunSourceFromConfig(t *testing.T) {
 	if _, err := configFile.Write([]byte(configContent)); err != nil {
 		t.Fatalf("Failed to write config file: %v", err)
 	}
-	configFile.Close()
+	if err := configFile.Close(); err != nil {
+		t.Fatalf("Failed to close config file: %v", err)
+	}
 
 	// No positional arg — source comes from config file only
 	os.Args = []string{"cmd", "--config", configFile.Name()}
@@ -261,8 +263,12 @@ func TestRunNoSourceAnywhere(t *testing.T) {
 		t.Fatalf("Failed to create temp config file: %v", err)
 	}
 	defer os.Remove(configFile.Name())
-	configFile.Write([]byte("verbose: false\n"))
-	configFile.Close()
+	if _, err := configFile.Write([]byte("verbose: false\n")); err != nil {
+		t.Fatalf("Failed to write config file: %v", err)
+	}
+	if err := configFile.Close(); err != nil {
+		t.Fatalf("Failed to close config file: %v", err)
+	}
 
 	// No positional arg, no source in config
 	os.Args = []string{"cmd", "--config", configFile.Name()}

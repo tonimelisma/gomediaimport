@@ -185,7 +185,7 @@ func TestCopyFileErrors(t *testing.T) {
 	}
 
 	// Restore permissions for cleanup
-	os.Chmod(readOnlyDir, 0755)
+	_ = os.Chmod(readOnlyDir, 0755)
 }
 
 func TestSidecarCopyFollowsParentRename(t *testing.T) {
@@ -516,7 +516,7 @@ func TestCopyFilesNonTTY(t *testing.T) {
 	cfg := config{Verbose: true, Workers: 1}
 	copyErr := copyFiles(files, cfg)
 
-	w.Close()
+	_ = w.Close()
 	os.Stdout = oldStdout
 
 	if copyErr != nil {

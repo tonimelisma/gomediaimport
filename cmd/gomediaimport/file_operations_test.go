@@ -243,7 +243,7 @@ func TestIsDuplicate(t *testing.T) {
 		if err := os.Chmod(unreadableDir, 0000); err != nil {
 			t.Fatal(err)
 		}
-		defer os.Chmod(unreadableDir, 0755)
+		defer func() { _ = os.Chmod(unreadableDir, 0755) }()
 
 		fileInfo.SourceChecksum = ""
 		_, err := isDuplicate(fileInfo, unreadableFile, true)

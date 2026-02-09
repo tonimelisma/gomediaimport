@@ -285,7 +285,7 @@ func calculateXXHash(filepath string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	hash := xxhash.New()
 	if _, err := io.Copy(hash, file); err != nil {
