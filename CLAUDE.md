@@ -30,7 +30,7 @@ Before considering any task complete, you must:
 6. `git status` — clean working tree (no modified, staged, or untracked files that shouldn't be there)
 7. Commits have clear, conventional-style messages (e.g. `fix:`, `feat:`, `refactor:`, `test:`, `docs:`)
 8. If asked to push, `git push` after all the above
-9. Create a GitHub release (no binaries) — tag with semantic version, include changelog entry in the release body. Use `gh release create` or the GitHub MCP tool.
+9. Create a GitHub release (no binaries) — tag with semantic version, include changelog entry in the release body. Use `gh release create` or the GitHub MCP tool. **This must be the very last step** — no commits after the tag. If you need to fix something after tagging, delete the release/tag and re-create it.
 
 ## Build & Test Commands
 
