@@ -1,5 +1,11 @@
 # Changelog
 
+## [v1.1.2] - 2026-02-09
+
+### Features
+- Added `--version` flag to print version and exit
+- Version can be set at build time via `-ldflags "-X main.version=..."`, defaults to `dev`
+
 ## [v1.1.1] - 2026-02-09
 
 ### Bug Fixes

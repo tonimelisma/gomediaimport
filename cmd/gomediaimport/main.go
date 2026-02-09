@@ -10,8 +10,11 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// args holds the command-line arguments
-var args struct {
+// version is set at build time via -ldflags or defaults to "dev"
+var version = "dev"
+
+// cliArgs holds the command-line arguments
+type cliArgs struct {
 	SourceDir          string `arg:"positional" help:"Source directory for media files"`
 	DestDir            string `arg:"--dest" help:"Destination directory for imported media"`
 	ConfigFile         string `arg:"--config" help:"Path to config file"`
@@ -26,6 +29,13 @@ var args struct {
 	SidecarDefault     string `arg:"--sidecar-default" help:"Default action for unknown sidecar types (ignore/copy/delete)" default:"delete"`
 	Workers            int    `arg:"--workers" help:"Number of concurrent copy workers (0 = default of 4)"`
 }
+
+// Version returns the version string for --version flag
+func (cliArgs) Version() string {
+	return "gomediaimport " + version
+}
+
+var args cliArgs
 
 // config holds the application configuration
 type config struct {

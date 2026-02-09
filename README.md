@@ -39,7 +39,7 @@ gomediaimport [--dest DEST] [--config CONFIG] [--organize-by-date]
   [--rename-by-date-time] [--checksum-duplicates]
   [-v] [--dry-run] [--skip-thumbnails] [--delete-originals]
   [--auto-eject-macos] [--sidecar-default ACTION]
-  [--workers N]
+  [--workers N] [--version]
   [SOURCE_DIR]
 ```
 
@@ -56,6 +56,7 @@ gomediaimport [--dest DEST] [--config CONFIG] [--organize-by-date]
 - `--auto-eject-macos`: On macOS, eject the source drive after a fully successful import (default: `false`)
 - `--sidecar-default ACTION`: Default action for sidecar file types: `ignore`, `copy`, or `delete` (default: `delete`)
 - `--workers N`: Number of concurrent copy workers (default: 4)
+- `--version`: Print version and exit
 
 ### Examples
 
