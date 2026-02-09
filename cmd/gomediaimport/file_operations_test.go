@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -664,5 +665,197 @@ func TestZeroByteFile(t *testing.T) {
 	}
 	if info.Size() != 0 {
 		t.Errorf("expected destination file to be 0 bytes, got %d", info.Size())
+	}
+}
+
+func TestSetFinalDestinationFilenameMultipleCollisions(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "multi-collision-test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	srcDir := filepath.Join(tmpDir, "src")
+	destDir := filepath.Join(tmpDir, "dest")
+	if err := os.MkdirAll(srcDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(destDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create 3 source files with different content but same timestamp
+	now := time.Date(2024, 1, 15, 10, 0, 0, 0, time.UTC)
+	contents := [][]byte{
+		[]byte("content A"),
+		[]byte("content BB"),
+		[]byte("content CCC"),
+	}
+	for i, c := range contents {
+		name := fmt.Sprintf("file%d.jpg", i)
+		if err := os.WriteFile(filepath.Join(srcDir, name), c, 0644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	cfg := config{
+		DestDir:          destDir,
+		RenameByDateTime: true,
+	}
+
+	files := make([]FileInfo, len(contents))
+	for i, c := range contents {
+		files[i] = FileInfo{
+			SourceName:       fmt.Sprintf("file%d.jpg", i),
+			SourceDir:        srcDir,
+			DestDir:          destDir,
+			Size:             int64(len(c)),
+			CreationDateTime: now,
+			FileType:         JPEG,
+		}
+	}
+
+	sizeTimeIndex := make(map[fileSizeTime][]int)
+	initialFilename := now.Format("20060102_150405") + ".jpg"
+
+	for i := range files {
+		if err := setFinalDestinationFilename(&files, i, initialFilename, cfg, sizeTimeIndex); err != nil {
+			t.Fatalf("setFinalDestinationFilename[%d] failed: %v", i, err)
+		}
+		key := fileSizeTime{Size: files[i].Size, Timestamp: files[i].CreationDateTime}
+		sizeTimeIndex[key] = append(sizeTimeIndex[key], i)
+	}
+
+	// First file gets the base name
+	if files[0].DestName != "20240115_100000.jpg" {
+		t.Errorf("files[0] expected 20240115_100000.jpg, got %s", files[0].DestName)
+	}
+	// Second file gets _001
+	if files[1].DestName != "20240115_100000_001.jpg" {
+		t.Errorf("files[1] expected 20240115_100000_001.jpg, got %s", files[1].DestName)
+	}
+	// Third file gets _002
+	if files[2].DestName != "20240115_100000_002.jpg" {
+		t.Errorf("files[2] expected 20240115_100000_002.jpg, got %s", files[2].DestName)
+	}
+}
+
+func TestSetFinalDestinationFilenameNoRename(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "norename-test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	srcDir := filepath.Join(tmpDir, "src")
+	destDir := filepath.Join(tmpDir, "dest")
+	if err := os.MkdirAll(srcDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(destDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	content := []byte("photo data")
+	if err := os.WriteFile(filepath.Join(srcDir, "IMG_001.jpg"), content, 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg := config{
+		DestDir:          destDir,
+		RenameByDateTime: false,
+	}
+
+	files := []FileInfo{
+		{
+			SourceName:       "IMG_001.jpg",
+			SourceDir:        srcDir,
+			DestDir:          destDir,
+			Size:             int64(len(content)),
+			CreationDateTime: time.Now(),
+			FileType:         JPEG,
+		},
+	}
+
+	sizeTimeIndex := make(map[fileSizeTime][]int)
+	// When not renaming, initial filename is the source name
+	if err := setFinalDestinationFilename(&files, 0, "IMG_001.jpg", cfg, sizeTimeIndex); err != nil {
+		t.Fatalf("setFinalDestinationFilename failed: %v", err)
+	}
+
+	if files[0].DestName != "IMG_001.jpg" {
+		t.Errorf("expected IMG_001.jpg (original name preserved), got %s", files[0].DestName)
+	}
+}
+
+func TestSetFinalDestinationFilenameDuplicateInBatch(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "batch-dup-test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	srcDir := filepath.Join(tmpDir, "src")
+	destDir := filepath.Join(tmpDir, "dest")
+	if err := os.MkdirAll(srcDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(destDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	// Two files with identical content, size, and timestamp
+	content := []byte("duplicate content")
+	now := time.Date(2024, 6, 1, 12, 0, 0, 0, time.UTC)
+
+	if err := os.WriteFile(filepath.Join(srcDir, "dup1.jpg"), content, 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(srcDir, "dup2.jpg"), content, 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg := config{
+		DestDir:            destDir,
+		RenameByDateTime:   true,
+		ChecksumDuplicates: true,
+	}
+
+	files := []FileInfo{
+		{
+			SourceName:       "dup1.jpg",
+			SourceDir:        srcDir,
+			DestDir:          destDir,
+			Size:             int64(len(content)),
+			CreationDateTime: now,
+			FileType:         JPEG,
+		},
+		{
+			SourceName:       "dup2.jpg",
+			SourceDir:        srcDir,
+			DestDir:          destDir,
+			Size:             int64(len(content)),
+			CreationDateTime: now,
+			FileType:         JPEG,
+		},
+	}
+
+	sizeTimeIndex := make(map[fileSizeTime][]int)
+	initialFilename := now.Format("20060102_150405") + ".jpg"
+
+	// Process first file
+	if err := setFinalDestinationFilename(&files, 0, initialFilename, cfg, sizeTimeIndex); err != nil {
+		t.Fatalf("setFinalDestinationFilename[0] failed: %v", err)
+	}
+	key := fileSizeTime{Size: files[0].Size, Timestamp: files[0].CreationDateTime}
+	sizeTimeIndex[key] = append(sizeTimeIndex[key], 0)
+
+	// Process second file — should be detected as duplicate
+	if err := setFinalDestinationFilename(&files, 1, initialFilename, cfg, sizeTimeIndex); err != nil {
+		t.Fatalf("setFinalDestinationFilename[1] failed: %v", err)
+	}
+
+	if files[1].Status != StatusPreExisting {
+		t.Errorf("expected StatusPreExisting for duplicate in batch, got %v", files[1].Status)
 	}
 }

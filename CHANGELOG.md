@@ -1,5 +1,29 @@
 # Changelog
 
+## [v1.1.1] - 2026-02-09
+
+### Bug Fixes
+- **Fix copy error not reported**: `copyFiles()` now accumulates errors when `copyFile()` fails, ensuring non-zero exit code on file copy failures (data integrity bug)
+
+### Testing
+- Added `TestCopyFilesAccumulatesCopyError` — verifies `copyFiles()` returns error when a source file is missing
+- Added `TestSetFinalDestinationFilenameMultipleCollisions` — verifies `_001`, `_002` suffixes on filename collisions
+- Added `TestSetFinalDestinationFilenameNoRename` — verifies original filename preserved when `RenameByDateTime=false`
+- Added `TestSetFinalDestinationFilenameDuplicateInBatch` — verifies in-batch duplicate detection marks `StatusPreExisting`
+- Added `TestRunBooleanOverrideFalse` — verifies `--verbose=false` CLI overrides `verbose: true` in config
+- Added `TestRunCustomConfigPath` — verifies `--config` flag uses a custom YAML file
+- Added `TestRunWorkersOverride` — verifies `--workers` CLI flag overrides config file value
+
+### Documentation
+- Rewrote README.md: platform-neutral language, added missing CLI flags (`--sidecar-default`, `--workers`), added sidecar file types section, updated examples and How It Works
+- Updated CLAUDE.md: added docs update and GitHub release creation to DOD, updated architecture section
+- Updated example config file (`gomediaimportrc`): added `sidecar_default`, `sidecars`, and `workers` options
+- Removed `ROADMAP.md`
+
+### Maintenance
+- Fixed `go fmt` drift in `import_test.go` and `metadata_test.go`
+- Upgraded local `golangci-lint` to v2
+
 ## [v1.1.0] - 2025-02-08
 
 ### Features

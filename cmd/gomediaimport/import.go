@@ -305,6 +305,7 @@ func copyFiles(files []FileInfo, cfg config) error {
 						_ = os.Remove(destPath)
 						mu.Lock()
 						files[i].Status = StatusFailed
+						copyErrors = append(copyErrors, fmt.Errorf("failed to copy %s: %w", srcPath, err))
 						fmt.Fprintf(os.Stderr, "Error: failed to copy %s: %v\n", srcPath, err)
 						mu.Unlock()
 						continue

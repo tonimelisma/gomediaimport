@@ -1,6 +1,6 @@
 # ~/.gomediaimportrc example
 # Copy this into your home directory to set defaults.
-# Configuration file defaults will always be overriden by command-line parameters.
+# Configuration file defaults will always be overridden by command-line parameters.
 
 # Source directory for media files
 # If set here, you can omit the positional SOURCE_DIR argument on the command line.
@@ -10,13 +10,13 @@ source_directory: "/path/to/your/source/directory"
 # If not specified, defaults to ~/Pictures
 destination_directory: "/path/to/your/destination/directory"
 
-# Organize files by date
+# Organize files by date into YYYY/MM subdirectories
 organize_by_date: false
 
-# Rename files by date and time
+# Rename files by date and time (YYYYMMDD_HHMMSS format)
 rename_by_date_time: false
 
-# Use checksums to identify duplicates
+# Use xxHash64 checksums to identify duplicates (slower but more accurate)
 checksum_duplicates: false
 
 # Enable verbose output
@@ -33,3 +33,15 @@ delete_originals: false
 
 # Automatically eject media after import on macOS (e.g., source drive)
 auto_eject_macos: false
+
+# Default action for unknown sidecar file types: ignore, copy, or delete
+sidecar_default: delete
+
+# Per-extension sidecar overrides (uncomment and modify as needed)
+# sidecars:
+#   xmp: copy
+#   srt: copy
+#   thm: delete
+
+# Number of concurrent copy workers (0 = default of 4)
+workers: 0

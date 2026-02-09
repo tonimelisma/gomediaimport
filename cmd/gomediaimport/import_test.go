@@ -212,11 +212,11 @@ func TestSidecarCopyFollowsParentRename(t *testing.T) {
 	now := time.Date(2024, 3, 15, 14, 30, 0, 0, time.UTC)
 
 	cfg := config{
-		SourceDir:      srcDir,
-		DestDir:        destDir,
+		SourceDir:        srcDir,
+		DestDir:          destDir,
 		RenameByDateTime: true,
-		SidecarDefault: SidecarDelete,
-		Sidecars:       map[string]SidecarAction{},
+		SidecarDefault:   SidecarDelete,
+		Sidecars:         map[string]SidecarAction{},
 	}
 
 	files, err := enumerateFiles(srcDir, cfg)
@@ -543,6 +543,71 @@ func TestCopyFilesNonTTY(t *testing.T) {
 	// Should contain progress info (without ANSI codes)
 	if !strings.Contains(outputStr, "remaining") {
 		t.Errorf("Output should contain progress info, got:\n%s", outputStr)
+	}
+}
+
+func TestCopyFilesAccumulatesCopyError(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "copyerr-accum-test")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	srcDir := filepath.Join(tmpDir, "src")
+	destDir := filepath.Join(tmpDir, "dest")
+	if err := os.MkdirAll(srcDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create one valid source file and one that will be removed before copy
+	validContent := []byte("valid photo data")
+	if err := os.WriteFile(filepath.Join(srcDir, "good.jpg"), validContent, 0644); err != nil {
+		t.Fatal(err)
+	}
+	// Create and then remove the "bad" source file so copyFile will fail
+	badPath := filepath.Join(srcDir, "bad.jpg")
+	if err := os.WriteFile(badPath, []byte("will be removed"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	files := []FileInfo{
+		{
+			SourceName:       "good.jpg",
+			SourceDir:        srcDir,
+			DestName:         "good.jpg",
+			DestDir:          destDir,
+			Size:             int64(len(validContent)),
+			CreationDateTime: time.Now(),
+		},
+		{
+			SourceName:       "bad.jpg",
+			SourceDir:        srcDir,
+			DestName:         "bad.jpg",
+			DestDir:          destDir,
+			Size:             15,
+			CreationDateTime: time.Now(),
+		},
+	}
+
+	// Remove the source file so copyFile fails for it
+	if err := os.Remove(badPath); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg := config{Workers: 1}
+	err = copyFiles(files, cfg)
+	if err == nil {
+		t.Fatal("copyFiles should return an error when a file fails to copy")
+	}
+
+	// Verify the good file was copied
+	if files[0].Status != StatusCopied {
+		t.Errorf("good file: expected StatusCopied, got %v", files[0].Status)
+	}
+
+	// Verify the bad file has StatusFailed
+	if files[1].Status != StatusFailed {
+		t.Errorf("bad file: expected StatusFailed, got %v", files[1].Status)
 	}
 }
 

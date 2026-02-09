@@ -23,12 +23,12 @@ func buildMinimalMP4(t *testing.T, dir string, creationTime uint32) string {
 	binary.BigEndian.PutUint32(mvhd[0:4], mvhdSize)
 	copy(mvhd[4:8], "mvhd")
 	// version=0, flags=0 (bytes 8-11 are zero)
-	binary.BigEndian.PutUint32(mvhd[12:16], creationTime)  // creation_time
-	binary.BigEndian.PutUint32(mvhd[16:20], creationTime)  // modification_time
-	binary.BigEndian.PutUint32(mvhd[20:24], 1000)          // timescale
-	binary.BigEndian.PutUint32(mvhd[24:28], 0)             // duration
-	binary.BigEndian.PutUint32(mvhd[28:32], 0x00010000)    // rate = 1.0 (fixed 16.16)
-	binary.BigEndian.PutUint16(mvhd[32:34], 0x0100)        // volume = 1.0 (fixed 8.8)
+	binary.BigEndian.PutUint32(mvhd[12:16], creationTime) // creation_time
+	binary.BigEndian.PutUint32(mvhd[16:20], creationTime) // modification_time
+	binary.BigEndian.PutUint32(mvhd[20:24], 1000)         // timescale
+	binary.BigEndian.PutUint32(mvhd[24:28], 0)            // duration
+	binary.BigEndian.PutUint32(mvhd[28:32], 0x00010000)   // rate = 1.0 (fixed 16.16)
+	binary.BigEndian.PutUint16(mvhd[32:34], 0x0100)       // volume = 1.0 (fixed 8.8)
 	// bytes 34-42: reserved (zeros)
 	// matrix: identity matrix in fixed-point 16.16
 	// [0x00010000, 0, 0, 0, 0x00010000, 0, 0, 0, 0x40000000]

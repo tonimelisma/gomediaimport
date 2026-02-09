@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/alexflint/go-arg"
 	"gopkg.in/yaml.v3"
 )
 
@@ -674,4 +675,145 @@ func TestValidateConfigInvalidSidecarAction(t *testing.T) {
 			t.Error("Expected error for invalid sidecar override action, got nil")
 		}
 	})
+}
+
+func TestRunBooleanOverrideFalse(t *testing.T) {
+	savedArgs := args
+	defer func() { args = savedArgs }()
+	oldArgs := os.Args
+	defer func() { os.Args = oldArgs }()
+
+	tmpDir, err := os.MkdirTemp("", "bool-override-test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	// Config file sets verbose=true
+	configContent := "verbose: true\nsource_directory: " + tmpDir + "\n"
+	configFile, err := os.CreateTemp("", "config-bool-*.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(configFile.Name())
+	if _, err := configFile.Write([]byte(configContent)); err != nil {
+		t.Fatal(err)
+	}
+	configFile.Close()
+
+	// CLI overrides verbose to false
+	os.Args = []string{"cmd", "--config", configFile.Name(), "--verbose=false"}
+
+	cfg := config{}
+	if err := setDefaults(&cfg); err != nil {
+		t.Fatal(err)
+	}
+	arg.MustParse(&args)
+
+	if args.ConfigFile != "" {
+		cfg.ConfigFile = args.ConfigFile
+	}
+	if err := parseConfigFile(&cfg); err != nil {
+		t.Fatal(err)
+	}
+
+	// Before CLI override, verbose should be true from config
+	if !cfg.Verbose {
+		t.Error("expected verbose=true from config file")
+	}
+
+	// Apply CLI override
+	if wasFlagProvided("-v") || wasFlagProvided("--verbose") {
+		cfg.Verbose = args.Verbose
+	}
+
+	if cfg.Verbose {
+		t.Error("expected verbose=false after CLI override with --verbose=false")
+	}
+}
+
+func TestRunCustomConfigPath(t *testing.T) {
+	savedArgs := args
+	defer func() { args = savedArgs }()
+	oldArgs := os.Args
+	defer func() { os.Args = oldArgs }()
+
+	tmpDir, err := os.MkdirTemp("", "custom-config-test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	// Create custom config with organize_by_date=true
+	configContent := "organize_by_date: true\nsource_directory: " + tmpDir + "\n"
+	configFile, err := os.CreateTemp("", "custom-config-*.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(configFile.Name())
+	if _, err := configFile.Write([]byte(configContent)); err != nil {
+		t.Fatal(err)
+	}
+	configFile.Close()
+
+	os.Args = []string{"cmd", "--config", configFile.Name()}
+
+	if err := run(); err != nil {
+		t.Fatalf("run() with custom config path failed: %v", err)
+	}
+}
+
+func TestRunWorkersOverride(t *testing.T) {
+	savedArgs := args
+	defer func() { args = savedArgs }()
+	oldArgs := os.Args
+	defer func() { os.Args = oldArgs }()
+
+	tmpDir, err := os.MkdirTemp("", "workers-override-test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	// Config file sets workers=2
+	configContent := "workers: 2\nsource_directory: " + tmpDir + "\n"
+	configFile, err := os.CreateTemp("", "config-workers-*.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(configFile.Name())
+	if _, err := configFile.Write([]byte(configContent)); err != nil {
+		t.Fatal(err)
+	}
+	configFile.Close()
+
+	// CLI overrides workers to 8
+	os.Args = []string{"cmd", "--config", configFile.Name(), "--workers", "8"}
+
+	cfg := config{}
+	if err := setDefaults(&cfg); err != nil {
+		t.Fatal(err)
+	}
+	arg.MustParse(&args)
+
+	if args.ConfigFile != "" {
+		cfg.ConfigFile = args.ConfigFile
+	}
+	if err := parseConfigFile(&cfg); err != nil {
+		t.Fatal(err)
+	}
+
+	// From config file, workers should be 2
+	if cfg.Workers != 2 {
+		t.Errorf("expected workers=2 from config, got %d", cfg.Workers)
+	}
+
+	// Apply CLI override
+	if wasFlagProvided("--workers") {
+		cfg.Workers = args.Workers
+	}
+
+	if cfg.Workers != 8 {
+		t.Errorf("expected workers=8 after CLI override, got %d", cfg.Workers)
+	}
 }
