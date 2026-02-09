@@ -7,7 +7,7 @@ require (
 	github.com/alexflint/go-arg v1.6.1
 	github.com/cespare/xxhash/v2 v2.3.0
 	github.com/evanoberholster/imagemeta v0.3.1
-	gopkg.in/yaml.v2 v2.4.0
+	gopkg.in/yaml.v3 v3.0.1
 )
 
 require (

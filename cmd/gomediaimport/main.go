@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/alexflint/go-arg"
-	"gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v3"
 )
 
 // args holds the command-line arguments
