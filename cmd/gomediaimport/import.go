@@ -6,7 +6,10 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -37,6 +40,15 @@ type FileInfo struct {
 	ParentIndex      int // Index of parent media file for sidecars, -1 if N/A
 }
 
+// effectiveWorkers returns the number of copy workers to use.
+// If workers <= 0, returns the default of 4.
+func effectiveWorkers(workers int) int {
+	if workers <= 0 {
+		return 4
+	}
+	return workers
+}
+
 // importMedia handles the main functionality of the program
 func importMedia(cfg config) error {
 	if cfg.Verbose {
@@ -48,6 +60,7 @@ func importMedia(cfg config) error {
 		fmt.Println("Skip thumbnails:", cfg.SkipThumbnails)
 		fmt.Println("Delete originals:", cfg.DeleteOriginals)
 		fmt.Println("Sidecar default:", cfg.SidecarDefault)
+		fmt.Println("Copy workers:", effectiveWorkers(cfg.Workers))
 	}
 
 	// Enumerate files in the source directory
@@ -215,72 +228,137 @@ func importMedia(cfg config) error {
 }
 
 func copyFiles(files []FileInfo, cfg config) error {
+	// Build work list of file indices that need copying
+	var work []int
 	var totalSize int64
-	for _, file := range files {
-		if file.Status != StatusUnnamable && file.Status != StatusPreExisting && file.Status != StatusSidecarDeleted {
-			totalSize += file.Size
+	for i, file := range files {
+		if file.Status == StatusUnnamable || file.Status == StatusPreExisting || file.Status == StatusSidecarDeleted {
+			continue
 		}
+		work = append(work, i)
+		totalSize += file.Size
 	}
 
 	if cfg.Verbose {
 		fmt.Printf("Total size to copy: %s\n", humanReadableSize(totalSize))
 	}
 
-	var copiedSize int64
+	if len(work) == 0 {
+		return nil
+	}
+
+	// Sort work by file size descending
+	sort.Slice(work, func(a, b int) bool {
+		return files[work[a]].Size > files[work[b]].Size
+	})
+
+	// Interleave from both ends for balanced worker load
+	interleaved := make([]int, 0, len(work))
+	lo, hi := 0, len(work)-1
+	for lo <= hi {
+		interleaved = append(interleaved, work[lo])
+		lo++
+		if lo <= hi {
+			interleaved = append(interleaved, work[hi])
+			hi--
+		}
+	}
+
+	// Create buffered job channel and pre-fill
+	jobs := make(chan int, len(interleaved))
+	for _, idx := range interleaved {
+		jobs <- idx
+	}
+	close(jobs)
+
+	// Concurrency primitives
+	var copiedSize atomic.Int64
+	var mu sync.Mutex
+	var copyErrors []error
+	var wg sync.WaitGroup
 	startTime := time.Now()
+	numWorkers := effectiveWorkers(cfg.Workers)
 
-	for i := range files {
-		if files[i].Status == StatusUnnamable || files[i].Status == StatusPreExisting || files[i].Status == StatusSidecarDeleted {
-			continue
-		}
+	for w := 0; w < numWorkers; w++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for i := range jobs {
+				srcPath := filepath.Join(files[i].SourceDir, files[i].SourceName)
+				destPath := filepath.Join(files[i].DestDir, files[i].DestName)
 
-		srcPath := filepath.Join(files[i].SourceDir, files[i].SourceName)
-		destPath := filepath.Join(files[i].DestDir, files[i].DestName)
+				if !cfg.DryRun {
+					if err := os.MkdirAll(files[i].DestDir, 0755); err != nil {
+						mu.Lock()
+						files[i].Status = StatusDirectoryCreationFailed
+						copyErrors = append(copyErrors, fmt.Errorf("failed to create directory %s: %w", files[i].DestDir, err))
+						mu.Unlock()
+						continue
+					}
 
-		// Create destination directory if it doesn't exist
-		if !cfg.DryRun {
-			if err := os.MkdirAll(files[i].DestDir, 0755); err != nil {
-				files[i].Status = StatusDirectoryCreationFailed
-				return fmt.Errorf("failed to create directory %s: %w", files[i].DestDir, err)
-			}
+					if err := copyFile(srcPath, destPath); err != nil {
+						os.Remove(destPath)
+						mu.Lock()
+						files[i].Status = StatusFailed
+						fmt.Fprintf(os.Stderr, "Error: failed to copy %s: %v\n", srcPath, err)
+						mu.Unlock()
+						continue
+					}
 
-			// Copy the file
-			if err := copyFile(srcPath, destPath); err != nil {
-				os.Remove(destPath)
-				files[i].Status = StatusFailed
-			} else {
-				// Set file times
-				if err := setFileTimes(destPath, files[i].CreationDateTime); err != nil {
-					fmt.Fprintf(os.Stderr, "Warning: Failed to set file times for %s: %v\n", destPath, err)
-				}
-				files[i].Status = StatusCopied
-			}
-		}
+					if err := setFileTimes(destPath, files[i].CreationDateTime); err != nil {
+						mu.Lock()
+						fmt.Fprintf(os.Stderr, "Warning: Failed to set file times for %s: %v\n", destPath, err)
+						mu.Unlock()
+					}
 
-		copiedSize += files[i].Size
-
-		if cfg.Verbose {
-			if totalSize > 0 {
-				progress := float64(copiedSize) / float64(totalSize)
-				elapsed := time.Since(startTime)
-				var remaining time.Duration
-				if progress > 0 {
-					estimatedTotal := time.Duration(float64(elapsed) / progress)
-					remaining = estimatedTotal - elapsed
+					mu.Lock()
+					files[i].Status = StatusCopied
+					mu.Unlock()
 				}
 
-				fmt.Printf("%s -> %s (%s/%s, %d%%, %s remaining)\n",
-					srcPath,
-					destPath,
-					humanReadableSize(copiedSize),
-					humanReadableSize(totalSize),
-					int(progress*100),
-					humanReadableDuration(remaining),
-				)
-			} else {
-				fmt.Printf("%s -> %s\n", srcPath, destPath)
+				newCopied := copiedSize.Add(files[i].Size)
+
+				if cfg.Verbose {
+					mu.Lock()
+					if totalSize > 0 {
+						progress := float64(newCopied) / float64(totalSize)
+						elapsed := time.Since(startTime)
+						var speed float64
+						if elapsed.Seconds() > 0 {
+							speed = float64(newCopied) / elapsed.Seconds()
+						}
+						var remaining time.Duration
+						if progress > 0 {
+							estimatedTotal := time.Duration(float64(elapsed) / progress)
+							remaining = estimatedTotal - elapsed
+						}
+
+						fmt.Printf("%s -> %s\n", srcPath, destPath)
+						fmt.Printf("\033[2K\r[%d%%] %s / %s — %s/s — %s remaining",
+							int(progress*100),
+							humanReadableSize(newCopied),
+							humanReadableSize(totalSize),
+							humanReadableSize(int64(speed)),
+							humanReadableDuration(remaining),
+						)
+					} else {
+						fmt.Printf("%s -> %s\n", srcPath, destPath)
+					}
+					mu.Unlock()
+				}
 			}
-		}
+		}()
+	}
+
+	wg.Wait()
+
+	// Clear the progress line
+	if cfg.Verbose && totalSize > 0 {
+		fmt.Println()
+	}
+
+	if len(copyErrors) > 0 {
+		return copyErrors[0]
 	}
 
 	return nil

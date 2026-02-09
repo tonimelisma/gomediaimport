@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -445,5 +446,91 @@ func TestOrphanedSidecarDeletedWithDeleteOriginals(t *testing.T) {
 	// CTG should NOT exist in dest
 	if _, err := os.Stat(filepath.Join(destDir, "index.ctg")); !os.IsNotExist(err) {
 		t.Error("CTG should NOT exist in destination")
+	}
+}
+
+func TestEffectiveWorkers(t *testing.T) {
+	tests := []struct {
+		input    int
+		expected int
+	}{
+		{0, 4},
+		{-1, 4},
+		{-100, 4},
+		{1, 1},
+		{4, 4},
+		{8, 8},
+		{16, 16},
+	}
+
+	for _, tt := range tests {
+		result := effectiveWorkers(tt.input)
+		if result != tt.expected {
+			t.Errorf("effectiveWorkers(%d) = %d, want %d", tt.input, result, tt.expected)
+		}
+	}
+}
+
+func TestCopyFilesConcurrent(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "concurrent-copy-test")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	srcDir := filepath.Join(tmpDir, "src")
+	destDir := filepath.Join(tmpDir, "dest")
+	if err := os.MkdirAll(srcDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create 20 small files with varying sizes
+	numFiles := 20
+	files := make([]FileInfo, numFiles)
+	for i := 0; i < numFiles; i++ {
+		name := fmt.Sprintf("file_%03d.jpg", i)
+		content := []byte(fmt.Sprintf("content for file %d, padding: %s", i, strings.Repeat("x", i*100)))
+		srcPath := filepath.Join(srcDir, name)
+		if err := os.WriteFile(srcPath, content, 0644); err != nil {
+			t.Fatalf("Failed to write %s: %v", srcPath, err)
+		}
+		files[i] = FileInfo{
+			SourceName:       name,
+			SourceDir:        srcDir,
+			DestName:         name,
+			DestDir:          destDir,
+			Size:             int64(len(content)),
+			CreationDateTime: time.Now(),
+		}
+	}
+
+	cfg := config{Workers: 4}
+	if err := copyFiles(files, cfg); err != nil {
+		t.Fatalf("copyFiles failed: %v", err)
+	}
+
+	// Verify all files were copied correctly
+	for i := 0; i < numFiles; i++ {
+		if files[i].Status != StatusCopied {
+			t.Errorf("file %d: expected StatusCopied, got %v", i, files[i].Status)
+		}
+
+		destPath := filepath.Join(destDir, files[i].DestName)
+		got, err := os.ReadFile(destPath)
+		if err != nil {
+			t.Errorf("file %d: failed to read dest: %v", i, err)
+			continue
+		}
+
+		srcPath := filepath.Join(srcDir, files[i].SourceName)
+		want, err := os.ReadFile(srcPath)
+		if err != nil {
+			t.Errorf("file %d: failed to read source: %v", i, err)
+			continue
+		}
+
+		if string(got) != string(want) {
+			t.Errorf("file %d: content mismatch", i)
+		}
 	}
 }

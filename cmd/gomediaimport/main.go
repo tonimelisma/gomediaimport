@@ -24,6 +24,7 @@ var args struct {
 	DeleteOriginals    bool   `arg:"--delete-originals" help:"Delete original files after successful import"`
 	AutoEjectMacOS     bool   `arg:"--auto-eject-macos" help:"Automatically eject media after import on macOS (e.g., source drive)"`
 	SidecarDefault     string `arg:"--sidecar-default" help:"Default action for unknown sidecar types (ignore/copy/delete)" default:"delete"`
+	Workers            int    `arg:"--workers" help:"Number of concurrent copy workers (0 = default of 4)"`
 }
 
 // config holds the application configuration
@@ -41,6 +42,7 @@ type config struct {
 	AutoEjectMacOS     bool                     `yaml:"auto_eject_macos"`
 	SidecarDefault     SidecarAction            `yaml:"sidecar_default"`
 	Sidecars           map[string]SidecarAction `yaml:"sidecars"`
+	Workers            int                      `yaml:"workers"`
 }
 
 // setDefaults initializes the config with default values
@@ -62,6 +64,7 @@ func setDefaults(cfg *config) error {
 	cfg.AutoEjectMacOS = false
 	cfg.SidecarDefault = SidecarDelete
 	cfg.Sidecars = make(map[string]SidecarAction)
+	cfg.Workers = 0
 	return nil
 }
 
@@ -103,6 +106,11 @@ func validateConfig(cfg *config) error {
 	destParent := filepath.Dir(cfg.DestDir)
 	if _, err := os.Stat(destParent); os.IsNotExist(err) {
 		return fmt.Errorf("destination parent directory does not exist: %s", destParent)
+	}
+
+	// Validate workers count
+	if cfg.Workers < 0 {
+		return fmt.Errorf("workers must be non-negative, got %d", cfg.Workers)
 	}
 
 	// Validate sidecar default action
@@ -185,6 +193,9 @@ func run() error {
 	}
 	if wasFlagProvided("--sidecar-default") {
 		cfg.SidecarDefault = SidecarAction(args.SidecarDefault)
+	}
+	if wasFlagProvided("--workers") {
+		cfg.Workers = args.Workers
 	}
 
 	// Validate the configuration

@@ -38,6 +38,10 @@ func TestSetDefaults(t *testing.T) {
 	if cfg.ChecksumDuplicates != false {
 		t.Errorf("Expected ChecksumDuplicates to be false, got %v", cfg.ChecksumDuplicates)
 	}
+
+	if cfg.Workers != 0 {
+		t.Errorf("Expected Workers to be 0, got %d", cfg.Workers)
+	}
 }
 
 // TestParseConfigFile tests the parseConfigFile function
@@ -147,6 +151,25 @@ func TestValidateConfig(t *testing.T) {
 	err = validateConfig(cfg)
 	if err == nil {
 		t.Fatalf("validateConfig should return error for non-existent source directory")
+	}
+}
+
+func TestValidateConfigNegativeWorkers(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "source")
+	if err != nil {
+		t.Fatalf("Failed to create temp directory: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	cfg := &config{
+		SourceDir:      tmpDir,
+		DestDir:        filepath.Join(tmpDir, "dest"),
+		SidecarDefault: SidecarDelete,
+		Workers:        -1,
+	}
+	err = validateConfig(cfg)
+	if err == nil {
+		t.Error("validateConfig should return error for negative workers")
 	}
 }
 
