@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -468,6 +469,80 @@ func TestEffectiveWorkers(t *testing.T) {
 		if result != tt.expected {
 			t.Errorf("effectiveWorkers(%d) = %d, want %d", tt.input, result, tt.expected)
 		}
+	}
+}
+
+func TestCopyFilesNonTTY(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "nontty-test")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	srcDir := filepath.Join(tmpDir, "src")
+	destDir := filepath.Join(tmpDir, "dest")
+	if err := os.MkdirAll(srcDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create a few source files
+	numFiles := 3
+	files := make([]FileInfo, numFiles)
+	for i := 0; i < numFiles; i++ {
+		name := fmt.Sprintf("file_%03d.jpg", i)
+		content := []byte(fmt.Sprintf("content %d padding %s", i, strings.Repeat("x", 500)))
+		srcPath := filepath.Join(srcDir, name)
+		if err := os.WriteFile(srcPath, content, 0644); err != nil {
+			t.Fatalf("Failed to write %s: %v", srcPath, err)
+		}
+		files[i] = FileInfo{
+			SourceName:       name,
+			SourceDir:        srcDir,
+			DestName:         name,
+			DestDir:          destDir,
+			Size:             int64(len(content)),
+			CreationDateTime: time.Now(),
+		}
+	}
+
+	// Capture stdout by redirecting to a pipe
+	oldStdout := os.Stdout
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("Failed to create pipe: %v", err)
+	}
+	os.Stdout = w
+
+	cfg := config{Verbose: true, Workers: 1}
+	copyErr := copyFiles(files, cfg)
+
+	w.Close()
+	os.Stdout = oldStdout
+
+	if copyErr != nil {
+		t.Fatalf("copyFiles failed: %v", copyErr)
+	}
+
+	output, err := io.ReadAll(r)
+	if err != nil {
+		t.Fatalf("Failed to read captured output: %v", err)
+	}
+
+	outputStr := string(output)
+
+	// In non-TTY mode (pipe), output should not contain ANSI escape codes
+	if strings.Contains(outputStr, "\033") {
+		t.Errorf("Output contains ANSI escape codes in non-TTY mode:\n%s", outputStr)
+	}
+
+	// Should still contain file copy lines
+	if !strings.Contains(outputStr, "file_000.jpg") {
+		t.Errorf("Output should contain file copy lines, got:\n%s", outputStr)
+	}
+
+	// Should contain progress info (without ANSI codes)
+	if !strings.Contains(outputStr, "remaining") {
+		t.Errorf("Output should contain progress info, got:\n%s", outputStr)
 	}
 }
 

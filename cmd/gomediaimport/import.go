@@ -11,6 +11,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/mattn/go-isatty"
 )
 
 // FileStatus represents the status of a file during import
@@ -228,6 +230,9 @@ func importMedia(cfg config) error {
 }
 
 func copyFiles(files []FileInfo, cfg config) error {
+	// Detect whether stdout is a terminal for ANSI escape code output
+	isTTY := isatty.IsTerminal(os.Stdout.Fd()) || isatty.IsCygwinTerminal(os.Stdout.Fd())
+
 	// Build work list of file indices that need copying
 	var work []int
 	var totalSize int64
@@ -333,14 +338,25 @@ func copyFiles(files []FileInfo, cfg config) error {
 							remaining = estimatedTotal - elapsed
 						}
 
-						fmt.Printf("%s -> %s\n", srcPath, destPath)
-						fmt.Printf("\033[2K\r[%d%%] %s / %s — %s/s — %s remaining",
-							int(progress*100),
-							humanReadableSize(newCopied),
-							humanReadableSize(totalSize),
-							humanReadableSize(int64(speed)),
-							humanReadableDuration(remaining),
-						)
+						if isTTY {
+							fmt.Printf("\033[2K\r%s -> %s\n", srcPath, destPath)
+							fmt.Printf("\033[2K\r[%d%%] %s / %s — %s/s — %s remaining",
+								int(progress*100),
+								humanReadableSize(newCopied),
+								humanReadableSize(totalSize),
+								humanReadableSize(int64(speed)),
+								humanReadableDuration(remaining),
+							)
+						} else {
+							fmt.Printf("%s -> %s\n", srcPath, destPath)
+							fmt.Printf("[%d%%] %s / %s — %s/s — %s remaining\n",
+								int(progress*100),
+								humanReadableSize(newCopied),
+								humanReadableSize(totalSize),
+								humanReadableSize(int64(speed)),
+								humanReadableDuration(remaining),
+							)
+						}
 					} else {
 						fmt.Printf("%s -> %s\n", srcPath, destPath)
 					}
@@ -352,8 +368,8 @@ func copyFiles(files []FileInfo, cfg config) error {
 
 	wg.Wait()
 
-	// Clear the progress line
-	if cfg.Verbose && totalSize > 0 {
+	// Clear the sticky progress line (only needed in TTY mode where it has no trailing newline)
+	if cfg.Verbose && totalSize > 0 && isTTY {
 		fmt.Println()
 	}
 
