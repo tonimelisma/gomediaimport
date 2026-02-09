@@ -24,8 +24,14 @@ jobs:
       - name: Build
         run: go build ./cmd/gomediaimport
 
+      - name: Check formatting
+        run: test -z "$(gofmt -l ./...)"
+
       - name: Test
-        run: go test -v -race ./cmd/gomediaimport
+        run: go test -race -coverprofile=coverage.out ./cmd/gomediaimport
+
+      - name: Coverage report
+        run: go tool cover -func=coverage.out
 
       - name: Vet
         run: go vet ./cmd/gomediaimport
@@ -41,3 +47,8 @@ jobs:
 
       - name: Staticcheck
         run: staticcheck ./...
+
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v7
+        with:
+          version: latest
