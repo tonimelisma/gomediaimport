@@ -5,6 +5,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"testing"
 	"time"
 )
@@ -519,4 +520,149 @@ func TestEnumerateFilesWithSidecars(t *testing.T) {
 			t.Errorf("Expected 4 files, got %d", len(files))
 		}
 	})
+}
+
+func TestIsNameTakenByPreviousFile(t *testing.T) {
+	files := []FileInfo{
+		{DestDir: "/dest", DestName: "IMG_001.jpg"},
+		{DestDir: "/dest", DestName: "IMG_002.jpg"},
+		{DestDir: "/other", DestName: "IMG_001.jpg"},
+		{DestDir: "/dest", DestName: "IMG_003.jpg"},
+	}
+
+	tests := []struct {
+		name         string
+		currentIndex int
+		proposedName string
+		expected     bool
+	}{
+		{"no collision", 3, "IMG_999.jpg", false},
+		{"collision in same dir", 3, "IMG_001.jpg", true},
+		{"first file never collides", 0, "IMG_001.jpg", false},
+		{"collision with non-adjacent file", 3, "IMG_002.jpg", true},
+		{"same name only in different dir", 2, "IMG_001.jpg", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := isNameTakenByPreviousFile(&files, tt.currentIndex, tt.proposedName)
+			if result != tt.expected {
+				t.Errorf("isNameTakenByPreviousFile(index=%d, name=%q) = %v, want %v",
+					tt.currentIndex, tt.proposedName, result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestEnumerateFilesSkipsSymlinks(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("symlinks may not be supported on Windows")
+	}
+
+	tempDir, err := os.MkdirTemp("", "symlink-test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	// Create a real JPEG file
+	realFile := filepath.Join(tempDir, "real.jpg")
+	if err := os.WriteFile(realFile, []byte("jpeg data"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create a file symlink pointing to the real file
+	linkFile := filepath.Join(tempDir, "link.jpg")
+	if err := os.Symlink(realFile, linkFile); err != nil {
+		t.Skip("failed to create symlink, skipping")
+	}
+
+	// Create a directory symlink
+	subDir := filepath.Join(tempDir, "subdir")
+	if err := os.Mkdir(subDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(subDir, "inner.jpg"), []byte("inner"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	dirLink := filepath.Join(tempDir, "linkeddir")
+	if err := os.Symlink(subDir, dirLink); err != nil {
+		t.Skip("failed to create dir symlink, skipping")
+	}
+
+	files, err := enumerateFiles(tempDir, config{})
+	if err != nil {
+		t.Fatalf("enumerateFiles failed: %v", err)
+	}
+
+	// Should find real.jpg and subdir/inner.jpg but NOT link.jpg or linkeddir/inner.jpg
+	for _, f := range files {
+		if f.SourceName == "link.jpg" {
+			t.Error("symlink link.jpg should have been skipped")
+		}
+	}
+
+	// Count: real.jpg + subdir/inner.jpg = 2
+	if len(files) != 2 {
+		names := make([]string, len(files))
+		for i, f := range files {
+			names[i] = filepath.Join(f.SourceDir, f.SourceName)
+		}
+		t.Errorf("expected 2 files, got %d: %v", len(files), names)
+	}
+}
+
+func TestZeroByteFile(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "zerobyte-test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	srcDir := filepath.Join(tmpDir, "src")
+	destDir := filepath.Join(tmpDir, "dest")
+	if err := os.MkdirAll(srcDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create a 0-byte JPEG file
+	zeroFile := filepath.Join(srcDir, "empty.jpg")
+	if err := os.WriteFile(zeroFile, []byte{}, 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Enumerate and verify
+	files, err := enumerateFiles(srcDir, config{})
+	if err != nil {
+		t.Fatalf("enumerateFiles failed: %v", err)
+	}
+	if len(files) != 1 {
+		t.Fatalf("expected 1 file, got %d", len(files))
+	}
+	if files[0].Size != 0 {
+		t.Errorf("expected size 0, got %d", files[0].Size)
+	}
+
+	// Set up for copy
+	files[0].DestDir = destDir
+	files[0].DestName = "empty.jpg"
+
+	cfg := config{DryRun: false}
+	if err := copyFiles(files, cfg); err != nil {
+		t.Fatalf("copyFiles failed: %v", err)
+	}
+
+	if files[0].Status != StatusCopied {
+		t.Errorf("expected StatusCopied, got %v", files[0].Status)
+	}
+
+	// Verify destination file exists and is 0 bytes
+	destPath := filepath.Join(destDir, "empty.jpg")
+	info, err := os.Stat(destPath)
+	if err != nil {
+		t.Fatalf("destination file not found: %v", err)
+	}
+	if info.Size() != 0 {
+		t.Errorf("expected destination file to be 0 bytes, got %d", info.Size())
+	}
 }
