@@ -59,9 +59,15 @@ func buildMinimalMP4(t *testing.T, dir string, creationTime uint32) string {
 	}
 	defer f.Close()
 
-	f.Write(ftyp)
-	f.Write(moov)
-	f.Write(mvhd)
+	if _, err := f.Write(ftyp); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.Write(moov); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.Write(mvhd); err != nil {
+		t.Fatal(err)
+	}
 
 	return filePath
 }
@@ -125,7 +131,9 @@ func TestExtractVideoCreationTime_MOVFileType(t *testing.T) {
 	filePath := buildMinimalMP4(t, dir, appleTime)
 	// Rename to .mov — same container format
 	movPath := filepath.Join(dir, "test.mov")
-	os.Rename(filePath, movPath)
+	if err := os.Rename(filePath, movPath); err != nil {
+		t.Fatal(err)
+	}
 
 	got, err := extractVideoCreationTime(movPath, MOV)
 	if err != nil {

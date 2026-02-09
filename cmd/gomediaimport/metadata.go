@@ -11,17 +11,17 @@ import (
 )
 
 func extractCreationDateTimeFromMetadata(fileInfo FileInfo) (time.Time, error) {
-	if fileInfo.MediaCategory == Sidecar {
+	switch fileInfo.MediaCategory {
+	case Sidecar:
 		return time.Time{}, fmt.Errorf("sidecar files do not have embedded metadata")
-	}
 
-	if fileInfo.MediaCategory == ProcessedPicture || fileInfo.MediaCategory == RawPicture {
+	case ProcessedPicture, RawPicture:
 		filePath := filepath.Join(fileInfo.SourceDir, fileInfo.SourceName)
 		file, err := os.Open(filePath)
 		if err != nil {
 			return time.Time{}, fmt.Errorf("error opening file: %v", err)
 		}
-		defer file.Close()
+		defer func() { _ = file.Close() }()
 
 		exif, err := imagemeta.Decode(file)
 		if err != nil {
@@ -37,14 +37,17 @@ func extractCreationDateTimeFromMetadata(fileInfo FileInfo) (time.Time, error) {
 		}
 
 		return time.Time{}, fmt.Errorf("no valid date found in image metadata")
-	} else if fileInfo.MediaCategory == Video {
+
+	case Video:
 		filePath := filepath.Join(fileInfo.SourceDir, fileInfo.SourceName)
 		return extractVideoCreationTime(filePath, fileInfo.FileType)
-	} else if fileInfo.MediaCategory == RawVideo {
-		return time.Time{}, fmt.Errorf("raw video formats do not use ISO BMFF containers")
-	}
 
-	return time.Time{}, fmt.Errorf("unsupported media category: %v", fileInfo.MediaCategory)
+	case RawVideo:
+		return time.Time{}, fmt.Errorf("raw video formats do not use ISO BMFF containers")
+
+	default:
+		return time.Time{}, fmt.Errorf("unsupported media category: %v", fileInfo.MediaCategory)
+	}
 }
 
 // appleEpochOffset is the number of seconds between the Apple/Mac epoch
@@ -73,7 +76,7 @@ func extractVideoCreationTime(filePath string, fileType FileType) (time.Time, er
 	if err != nil {
 		return time.Time{}, fmt.Errorf("error opening file: %v", err)
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	boxes, err := mp4.ExtractBoxesWithPayload(file, nil, []mp4.BoxPath{
 		{mp4.BoxTypeMoov(), mp4.BoxTypeMvhd()},
