@@ -38,8 +38,8 @@ Before considering any task complete, you must:
 # Build
 go build ./cmd/gomediaimport
 
-# Install globally
-go install ./cmd/gomediaimport
+# Install globally (with version embedded)
+go install -ldflags "-X main.version=$(git describe --tags --always)" ./cmd/gomediaimport
 
 # Run all tests
 go test ./cmd/gomediaimport

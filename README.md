@@ -25,10 +25,12 @@ Or clone and build locally:
 ```bash
 git clone https://github.com/tonimelisma/gomediaimport.git
 cd gomediaimport
-go install ./cmd/gomediaimport
+go install -ldflags "-X main.version=1.1.2" ./cmd/gomediaimport
 ```
 
 This installs gomediaimport into your `$GOPATH/bin` directory. Ensure it's in your PATH.
+
+To embed the version number, pass it via `-ldflags` as shown above. Without it, `--version` will print `dev`.
 
 ## Usage
 
