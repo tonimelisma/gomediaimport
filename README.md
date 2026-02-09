@@ -27,10 +27,10 @@ gomediaimport [--dest DEST] [--config CONFIG] [--organize-by-date]
 [--rename-by-date-time] [--checksum-duplicates]
 [-v] [--dry-run] [--skip-thumbnails] [--delete-originals]
 [--auto-eject-macos]
-SOURCE_DIR
+[SOURCE_DIR]
 ```
 
-- `SOURCE_DIR`: Source directory for media files (required)
+- `SOURCE_DIR`: Source directory for media files (optional if set in config file)
 - `--dest DEST`: Destination directory for imported media
 - `--config CONFIG`: Path to config file
 - `--organize-by-date`: Organize files by date
@@ -47,6 +47,9 @@ SOURCE_DIR
 ```bash
 # Import media with default settings
 gomediaimport /Volumes/SD_CARD
+
+# Import using source directory from config file (no positional arg needed)
+gomediaimport
 
 # Import media and organize by date
 gomediaimport --organize-by-date /Volumes/SD_CARD

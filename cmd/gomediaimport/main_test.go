@@ -195,6 +195,8 @@ func TestValidateConfigDestination(t *testing.T) {
 // TestRun tests the run function
 func TestRun(t *testing.T) {
 	// Save original args and restore them after the test
+	savedArgs := args
+	defer func() { args = savedArgs }()
 	oldArgs := os.Args
 	defer func() { os.Args = oldArgs }()
 
@@ -214,7 +216,66 @@ func TestRun(t *testing.T) {
 	}
 }
 
+func TestRunSourceFromConfig(t *testing.T) {
+	savedArgs := args
+	defer func() { args = savedArgs }()
+	oldArgs := os.Args
+	defer func() { os.Args = oldArgs }()
+
+	// Create a temporary source directory
+	tmpDir, err := os.MkdirTemp("", "source")
+	if err != nil {
+		t.Fatalf("Failed to create temp directory: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	// Create a config file with source_directory set
+	configContent := "source_directory: " + tmpDir + "\n"
+	configFile, err := os.CreateTemp("", "config-*.yaml")
+	if err != nil {
+		t.Fatalf("Failed to create temp config file: %v", err)
+	}
+	defer os.Remove(configFile.Name())
+	if _, err := configFile.Write([]byte(configContent)); err != nil {
+		t.Fatalf("Failed to write config file: %v", err)
+	}
+	configFile.Close()
+
+	// No positional arg — source comes from config file only
+	os.Args = []string{"cmd", "--config", configFile.Name()}
+
+	if err := run(); err != nil {
+		t.Errorf("run() returned error when source dir is in config file: %v", err)
+	}
+}
+
+func TestRunNoSourceAnywhere(t *testing.T) {
+	savedArgs := args
+	defer func() { args = savedArgs }()
+	oldArgs := os.Args
+	defer func() { os.Args = oldArgs }()
+
+	// Create an empty config file (no source_directory)
+	configFile, err := os.CreateTemp("", "config-*.yaml")
+	if err != nil {
+		t.Fatalf("Failed to create temp config file: %v", err)
+	}
+	defer os.Remove(configFile.Name())
+	configFile.Write([]byte("verbose: false\n"))
+	configFile.Close()
+
+	// No positional arg, no source in config
+	os.Args = []string{"cmd", "--config", configFile.Name()}
+
+	err = run()
+	if err == nil {
+		t.Error("run() should return error when source dir is not provided anywhere")
+	}
+}
+
 func TestRunInvalidSource(t *testing.T) {
+	savedArgs := args
+	defer func() { args = savedArgs }()
 	oldArgs := os.Args
 	defer func() { os.Args = oldArgs }()
 

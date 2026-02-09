@@ -12,7 +12,7 @@ import (
 
 // args holds the command-line arguments
 var args struct {
-	SourceDir          string `arg:"positional,required" help:"Source directory for media files"`
+	SourceDir          string `arg:"positional" help:"Source directory for media files"`
 	DestDir            string `arg:"--dest" help:"Destination directory for imported media"`
 	ConfigFile         string `arg:"--config" help:"Path to config file"`
 	OrganizeByDate     bool   `arg:"--organize-by-date" help:"Organize files by date"`

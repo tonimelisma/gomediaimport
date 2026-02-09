@@ -2,7 +2,8 @@
 # Copy this into your home directory to set defaults.
 # Configuration file defaults will always be overriden by command-line parameters.
 
-# Source directory for media files (required)
+# Source directory for media files
+# If set here, you can omit the positional SOURCE_DIR argument on the command line.
 source_directory: "/path/to/your/source/directory"
 
 # Destination directory for imported media
