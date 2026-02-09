@@ -148,7 +148,11 @@ func setFinalDestinationFilename(files *[]FileInfo, currentIndex int, initialFil
 		return nil
 	}
 
-	if isDuplicate(file, fullPath, cfg.ChecksumDuplicates) {
+	dup, err := isDuplicate(file, fullPath, cfg.ChecksumDuplicates)
+	if err != nil {
+		return err
+	}
+	if dup {
 		file.Status = StatusPreExisting
 		file.DestName = initialFilename
 		return nil
@@ -166,7 +170,11 @@ func setFinalDestinationFilename(files *[]FileInfo, currentIndex int, initialFil
 			file.DestName = newFilename
 			return nil
 		}
-		if isDuplicate(file, fullPath, cfg.ChecksumDuplicates) {
+		dup, err = isDuplicate(file, fullPath, cfg.ChecksumDuplicates)
+		if err != nil {
+			return err
+		}
+		if dup {
 			file.Status = StatusPreExisting
 			file.DestName = newFilename
 			return nil
@@ -238,38 +246,38 @@ func exists(destPath string) (bool, error) {
 	return false, err
 }
 
-func isDuplicate(file *FileInfo, destPath string, checksumDuplicates bool) bool {
+func isDuplicate(file *FileInfo, destPath string, checksumDuplicates bool) (bool, error) {
 	destInfo, err := os.Stat(destPath)
-	if os.IsNotExist(err) {
-		return false
+	if err != nil {
+		if os.IsNotExist(err) {
+			return false, nil
+		}
+		return false, fmt.Errorf("error checking destination file %s: %w", destPath, err)
 	}
 
 	if destInfo.Size() != file.Size {
-		return false
+		return false, nil
 	}
 
 	if checksumDuplicates {
 		srcChecksum := file.SourceChecksum
 		if srcChecksum == "" {
-			var err error
 			srcChecksum, err = calculateXXHash(filepath.Join(file.SourceDir, file.SourceName))
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "Warning: failed to calculate checksum for %s: %v\n", filepath.Join(file.SourceDir, file.SourceName), err)
-				return false
+				return false, fmt.Errorf("failed to calculate checksum for %s: %w", filepath.Join(file.SourceDir, file.SourceName), err)
 			}
 			file.SourceChecksum = srcChecksum
 		}
 
 		destChecksum, err := calculateXXHash(destPath)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Warning: failed to calculate checksum for %s: %v\n", destPath, err)
-			return false
+			return false, fmt.Errorf("failed to calculate checksum for %s: %w", destPath, err)
 		}
 
-		return srcChecksum == destChecksum
+		return srcChecksum == destChecksum, nil
 	}
 
-	return true
+	return true, nil
 }
 
 func calculateXXHash(filepath string) (string, error) {

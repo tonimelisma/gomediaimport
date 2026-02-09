@@ -104,15 +104,32 @@ func TestSetFinalDestinationFilename(t *testing.T) {
 	}
 	defer os.RemoveAll(tempDir)
 
+	srcDir := filepath.Join(tempDir, "src")
+	destDir := filepath.Join(tempDir, "dest")
+	if err := os.MkdirAll(srcDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(destDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create a real source file so checksum calculation works
+	srcContent := []byte("photo data")
+	if err := os.WriteFile(filepath.Join(srcDir, "test.jpg"), srcContent, 0644); err != nil {
+		t.Fatal(err)
+	}
+
 	cfg := config{
-		DestDir:            tempDir,
+		DestDir:            destDir,
 		ChecksumDuplicates: true,
 	}
 
 	files := []FileInfo{
 		{
 			SourceName:       "test.jpg",
-			DestDir:          tempDir,
+			SourceDir:        srcDir,
+			DestDir:          destDir,
+			Size:             int64(len(srcContent)),
 			CreationDateTime: time.Date(2023, 5, 1, 10, 30, 0, 0, time.UTC),
 			FileType:         JPEG,
 		},
@@ -130,12 +147,13 @@ func TestSetFinalDestinationFilename(t *testing.T) {
 		t.Errorf("Expected destination name %s, but got %s", initialFilename, files[0].DestName)
 	}
 
-	// Test with existing file
-	_, err = os.Create(filepath.Join(tempDir, initialFilename))
-	if err != nil {
+	// Test with existing file that has different content (not a duplicate)
+	if err := os.WriteFile(filepath.Join(destDir, initialFilename), []byte("different"), 0644); err != nil {
 		t.Fatalf("Failed to create test file: %v", err)
 	}
 
+	files[0].SourceChecksum = "" // Reset checksum
+	files[0].Status = ""
 	err = setFinalDestinationFilename(&files, 0, initialFilename, cfg, sizeTimeIndex)
 	if err != nil {
 		t.Errorf("setFinalDestinationFilename failed: %v", err)
@@ -180,22 +198,58 @@ func TestIsDuplicate(t *testing.T) {
 	}
 
 	tests := []struct {
+		name               string
 		destPath           string
 		checksumDuplicates bool
 		expected           bool
+		expectErr          bool
 	}{
-		{duplicateFile, true, true},
-		{duplicateFile, false, true},
-		{differentFile, true, false},
-		{differentFile, false, false},
+		{"duplicate with checksum", duplicateFile, true, true, false},
+		{"duplicate without checksum", duplicateFile, false, true, false},
+		{"different with checksum", differentFile, true, false, false},
+		{"different without checksum", differentFile, false, false, false},
+		{"non-existent dest", filepath.Join(tempDir, "nonexistent.txt"), true, false, false},
 	}
 
 	for _, tt := range tests {
-		result := isDuplicate(fileInfo, tt.destPath, tt.checksumDuplicates)
-		if result != tt.expected {
-			t.Errorf("isDuplicate(%s, %v) = %v, expected %v", tt.destPath, tt.checksumDuplicates, result, tt.expected)
-		}
+		t.Run(tt.name, func(t *testing.T) {
+			// Reset checksum so each subtest recalculates
+			fileInfo.SourceChecksum = ""
+			result, err := isDuplicate(fileInfo, tt.destPath, tt.checksumDuplicates)
+			if tt.expectErr && err == nil {
+				t.Error("expected error, got nil")
+			}
+			if !tt.expectErr && err != nil {
+				t.Errorf("unexpected error: %v", err)
+			}
+			if result != tt.expected {
+				t.Errorf("isDuplicate(%s, %v) = %v, expected %v", tt.destPath, tt.checksumDuplicates, result, tt.expected)
+			}
+		})
 	}
+
+	// Test stat error propagation (unreadable file)
+	t.Run("stat error propagation", func(t *testing.T) {
+		unreadableDir := filepath.Join(tempDir, "noperm")
+		if err := os.Mkdir(unreadableDir, 0755); err != nil {
+			t.Fatal(err)
+		}
+		unreadableFile := filepath.Join(unreadableDir, "file.txt")
+		if err := os.WriteFile(unreadableFile, content, 0644); err != nil {
+			t.Fatal(err)
+		}
+		// Remove permissions from the parent directory so stat fails
+		if err := os.Chmod(unreadableDir, 0000); err != nil {
+			t.Fatal(err)
+		}
+		defer os.Chmod(unreadableDir, 0755)
+
+		fileInfo.SourceChecksum = ""
+		_, err := isDuplicate(fileInfo, unreadableFile, true)
+		if err == nil {
+			t.Error("expected error for inaccessible file, got nil")
+		}
+	})
 }
 
 func TestCalculateXXHash(t *testing.T) {
