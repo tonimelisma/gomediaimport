@@ -4,10 +4,6 @@
 
 - Video metadata extraction for non-ISO-BMFF formats (AVI, MKV, MTS, etc. still fall back to mtime; MP4/MOV/M4V/3GP/3G2 done)
 - Structured logging (replace ad-hoc fmt.Printf)
-- Multithreading for copy operations
-- Upgrade yaml.v2 to yaml.v3
-- Handle metadata sidecar XML files for videos (copy with videos, delete originals after import)
-- Delete thumbnails after import
 - Handle multiple import directories
 - Don't prompt for source directory if defined in config file
 
