@@ -1,5 +1,19 @@
 # Changelog
 
+## [v1.2.0] - 2026-03-01
+
+### Breaking Changes
+- **Go 1.25 required**: minimum Go version bumped from 1.24 to 1.25
+- **CR3 format no longer supported for EXIF extraction**: Canon CR3 raw files fall back to filesystem mtime for date extraction (CR3 was never widely tested)
+
+### Improvements
+- **Migrate EXIF library from evanoberholster/imagemeta to bep/imagemeta**: the new library is actively maintained (by Hugo's lead developer), supports more formats, and uses a callback-based API with proper EXIF IFD traversal
+- **Dependency cleanup**: removed 6 transitive dependencies (zerolog, msgp, pkg/errors, philhofer/fwd, mattn/go-colorable, tinylib/msgp); added only golang.org/x/text
+
+### CI
+- Bumped Go version in CI from 1.24 to 1.25
+- Bumped staticcheck from v0.6.0 to v0.7.0
+
 ## [v1.1.3] - 2026-02-28
 
 ### Bug Fixes

@@ -4,11 +4,90 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	mp4 "github.com/abema/go-mp4"
-	"github.com/evanoberholster/imagemeta"
+	"github.com/bep/imagemeta"
 )
+
+// resolveImageFormat maps a FileInfo to the bep/imagemeta ImageFormat.
+// Returns false if the format is not supported for EXIF extraction.
+func resolveImageFormat(fileInfo FileInfo) (imagemeta.ImageFormat, bool) {
+	switch fileInfo.MediaCategory {
+	case ProcessedPicture:
+		switch fileInfo.FileType {
+		case JPEG:
+			return imagemeta.JPEG, true
+		case TIFF:
+			return imagemeta.TIFF, true
+		case PNG:
+			return imagemeta.PNG, true
+		case WEBP:
+			return imagemeta.WebP, true
+		case HEIF:
+			return imagemeta.HEIF, true
+		default:
+			return 0, false
+		}
+	case RawPicture:
+		ext := strings.ToLower(filepath.Ext(fileInfo.SourceName))
+		if ext != "" {
+			ext = ext[1:]
+		}
+		switch ext {
+		case "arw":
+			return imagemeta.ARW, true
+		case "cr2":
+			return imagemeta.CR2, true
+		case "dng":
+			return imagemeta.DNG, true
+		case "nef":
+			return imagemeta.NEF, true
+		case "pef":
+			return imagemeta.PEF, true
+		default:
+			return 0, false
+		}
+	default:
+		return 0, false
+	}
+}
+
+// extractImageDateTime opens an image file and extracts the creation date/time
+// from EXIF or XMP metadata using the bep/imagemeta library.
+func extractImageDateTime(filePath string, format imagemeta.ImageFormat) (time.Time, error) {
+	file, err := os.Open(filePath)
+	if err != nil {
+		return time.Time{}, fmt.Errorf("error opening file: %v", err)
+	}
+	defer func() { _ = file.Close() }()
+
+	var tags imagemeta.Tags
+
+	_, err = imagemeta.Decode(imagemeta.Options{
+		R:           file,
+		ImageFormat: format,
+		Sources:     imagemeta.EXIF | imagemeta.XMP,
+		ShouldHandleTag: func(tag imagemeta.TagInfo) bool {
+			return true
+		},
+		HandleTag: func(tag imagemeta.TagInfo) error {
+			tags.Add(tag)
+			return nil
+		},
+	})
+	if err != nil {
+		return time.Time{}, fmt.Errorf("error decoding metadata: %v", err)
+	}
+
+	t, err := tags.GetDateTime()
+	if err != nil {
+		return time.Time{}, fmt.Errorf("no valid date found in image metadata")
+	}
+
+	return t, nil
+}
 
 func extractCreationDateTimeFromMetadata(fileInfo FileInfo) (time.Time, error) {
 	switch fileInfo.MediaCategory {
@@ -16,27 +95,11 @@ func extractCreationDateTimeFromMetadata(fileInfo FileInfo) (time.Time, error) {
 		return time.Time{}, fmt.Errorf("sidecar files do not have embedded metadata")
 
 	case ProcessedPicture, RawPicture:
-		filePath := filepath.Join(fileInfo.SourceDir, fileInfo.SourceName)
-		file, err := os.Open(filePath)
-		if err != nil {
-			return time.Time{}, fmt.Errorf("error opening file: %v", err)
+		imgFormat, supported := resolveImageFormat(fileInfo)
+		if !supported {
+			return time.Time{}, fmt.Errorf("unsupported format for EXIF: %s", fileInfo.FileType)
 		}
-		defer func() { _ = file.Close() }()
-
-		exif, err := imagemeta.Decode(file)
-		if err != nil {
-			return time.Time{}, fmt.Errorf("error decoding EXIF: %v", err)
-		}
-
-		if !exif.DateTimeOriginal().IsZero() {
-			return exif.DateTimeOriginal(), nil
-		}
-
-		if !exif.CreateDate().IsZero() {
-			return exif.CreateDate(), nil
-		}
-
-		return time.Time{}, fmt.Errorf("no valid date found in image metadata")
+		return extractImageDateTime(filepath.Join(fileInfo.SourceDir, fileInfo.SourceName), imgFormat)
 
 	case Video:
 		filePath := filepath.Join(fileInfo.SourceDir, fileInfo.SourceName)
