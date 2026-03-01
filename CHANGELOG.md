@@ -1,5 +1,10 @@
 # Changelog
 
+## [v1.1.3] - 2026-02-28
+
+### Bug Fixes
+- **Fix video filename timezone mismatch**: video files (MP4, MOV, etc.) got UTC-based filenames while images got local-time filenames from EXIF, causing videos to be off by the local timezone offset. For recordings near midnight, this resulted in videos being dated on the wrong day. Removed erroneous `.UTC()` call so video times use local time, matching EXIF image behavior.
+
 ## [v1.1.2] - 2026-02-09
 
 ### Features

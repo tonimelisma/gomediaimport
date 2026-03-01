@@ -96,7 +96,7 @@ func extractVideoCreationTime(filePath string, fileType FileType) (time.Time, er
 			return time.Time{}, fmt.Errorf("mvhd creation time is zero")
 		}
 
-		t := time.Unix(int64(creationTime)-appleEpochOffset, 0).UTC()
+		t := time.Unix(int64(creationTime)-appleEpochOffset, 0)
 		if t.Year() < 1970 {
 			return time.Time{}, fmt.Errorf("mvhd creation time predates Unix epoch")
 		}
