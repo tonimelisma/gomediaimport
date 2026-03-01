@@ -40,7 +40,7 @@ jobs:
         run: govulncheck ./...
 
       - name: Install staticcheck
-        run: go install honnef.co/go/tools/cmd/staticcheck@latest
+        run: go install honnef.co/go/tools/cmd/staticcheck@v0.6.0
 
       - name: Staticcheck
         run: staticcheck ./...
