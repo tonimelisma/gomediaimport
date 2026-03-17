@@ -209,7 +209,7 @@ func TestRun(t *testing.T) {
 	defer os.RemoveAll(tmpDir)
 
 	// Set up test arguments
-	os.Args = []string{"cmd", tmpDir}
+	os.Args = []string{"cmd", "--source", tmpDir}
 
 	// Test that run() completes without error
 	if err := run(); err != nil {
@@ -286,7 +286,7 @@ func TestRunInvalidSource(t *testing.T) {
 	oldArgs := os.Args
 	defer func() { os.Args = oldArgs }()
 
-	os.Args = []string{"cmd", "/non/existent/source/dir"}
+	os.Args = []string{"cmd", "--source", "/non/existent/source/dir"}
 
 	err := run()
 	if err == nil {
@@ -365,6 +365,7 @@ func TestConfigMarshalUnmarshal(t *testing.T) {
 		ChecksumDuplicates: true,
 		SidecarDefault:     SidecarDelete,
 		Sidecars:           map[string]SidecarAction{"xmp": SidecarCopy},
+		WatchVolumes:       []string{},
 	}
 
 	data, err := yaml.Marshal(cfg)
@@ -423,7 +424,7 @@ func TestWasFlagProvided(t *testing.T) {
 	oldArgs := os.Args
 	defer func() { os.Args = oldArgs }()
 
-	os.Args = []string{"cmd", "/some/dir", "--verbose", "--auto-eject-macos=false"}
+	os.Args = []string{"cmd", "--source", "/some/dir", "--verbose", "--auto-eject-macos=false"}
 
 	if !wasFlagProvided("--verbose") {
 		t.Error("expected --verbose to be detected")
@@ -499,7 +500,7 @@ func TestAutoEjectMacOSConfiguration(t *testing.T) {
 		oldOsArgs := os.Args
 		defer func() { os.Args = oldOsArgs }()
 
-		os.Args = []string{"cmd", "/tmp", "--auto-eject-macos"}
+		os.Args = []string{"cmd", "--source", "/tmp", "--auto-eject-macos"}
 		args.AutoEjectMacOS = true
 		args.ConfigFile = tmpFileName
 
@@ -530,7 +531,7 @@ func TestAutoEjectMacOSConfiguration(t *testing.T) {
 		oldOsArgs := os.Args
 		defer func() { os.Args = oldOsArgs }()
 
-		os.Args = []string{"cmd", "/tmp", "--auto-eject-macos=false"}
+		os.Args = []string{"cmd", "--source", "/tmp", "--auto-eject-macos=false"}
 		args.AutoEjectMacOS = false
 		args.ConfigFile = tmpFileName
 

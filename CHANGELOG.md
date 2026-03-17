@@ -1,5 +1,25 @@
 # Changelog
 
+## [v1.3.0] - 2026-03-17
+
+### Breaking Changes
+- **`SourceDir` is now `--source` flag**: the source directory is no longer a positional argument. Use `--source /path/to/source` instead. This change was required to support subcommands with go-arg.
+
+### Features
+- **Auto-import watch mode** (`watch` subcommand, macOS only): install a LaunchAgent that automatically imports media when SD cards or camera cards are mounted. Uses `StartOnMount` to trigger on any filesystem mount, then filters volumes by diskutil properties, DCIM folder presence, and optional volume name allowlist.
+  - `gomediaimport watch --install` — install the LaunchAgent
+  - `gomediaimport watch --uninstall` — remove the LaunchAgent
+  - `gomediaimport watch --status` — show install status and watch configuration
+- **macOS notifications**: optional `display notification` alerts on card detection, import completion, and errors (configurable via `watch_notifications`)
+- **Volume filtering pipeline**: multi-stage filter (ejectable check, DCIM folder, glob-pattern allowlist) prevents importing from non-camera volumes
+
+### Configuration
+- New optional config keys: `watch_require_dcim` (default: true), `watch_volumes` (default: all), `watch_notifications` (default: true)
+- All watch settings are top-level in `~/.gomediaimportrc`
+
+### New Dependency
+- Added `howett.net/plist` for LaunchAgent plist generation and `diskutil info -plist` parsing
+
 ## [v1.2.0] - 2026-03-01
 
 ### Breaking Changes

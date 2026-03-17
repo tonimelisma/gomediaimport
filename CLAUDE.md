@@ -64,21 +64,33 @@ gomediaimport is a CLI tool that imports and organizes media files (photos/video
 
 ### Key Files
 
-- **main.go** — Entry point, `run()` function (extracted from `main()` for testability), CLI parsing (`go-arg`), YAML config loading, config validation, `wasFlagProvided()` helper for proper boolean override semantics. Three-tier config precedence: CLI flags > YAML file (`~/.gomediaimportrc`) > hardcoded defaults.
+- **main.go** — Entry point, `run()` function (extracted from `main()` for testability), CLI parsing (`go-arg`), YAML config loading, config validation, `wasFlagProvided()` helper for proper boolean override semantics. Three-tier config precedence: CLI flags > YAML file (`~/.gomediaimportrc`) > hardcoded defaults. `watch` subcommand dispatches to `runWatch()`. `SourceDir` is a `--source` flag (not positional) to support subcommands.
 - **import.go** — Core orchestrator. Defines `FileStatus` type with typed constants and `FileInfo` struct (central data type tracking source/dest paths, checksums, creation time, media category, status). `importMedia()` coordinates enumeration → copying → deletion → eject. Builds `fileSizeTime` index for O(1) duplicate lookup. `copyFiles()` uses a worker pool (`--workers` flag, default 4) with size-interleaved job scheduling for balanced load.
 - **file_operations.go** — File enumeration via `filepath.WalkDir` (with symlink skipping), duplicate detection (size+timestamp index or xxHash64 checksum), `exists()` returns `(bool, error)`, unique filename generation (appends `_001` through `_999999` on conflicts), macOS disk eject.
 - **metadata.go** — EXIF/XMP extraction using `bep/imagemeta` (callback-based API with `ShouldHandleTag` set to accept all tags). `resolveImageFormat()` maps FileType/extension to imagemeta format constants. Falls back to filesystem mtime for unsupported formats. Video metadata via MP4/MOV mvhd box parsing.
 - **media_types.go** — `MediaCategory` (ProcessedPicture, RawPicture, Video, RawVideo, Sidecar) and `FileType` constants. Extension-to-type mapping in `fileTypes` slice. `SidecarAction` type with per-extension defaults and overrides.
+- **watch.go** — Watch mode orchestrator. `runWatch()` dispatches to install/uninstall/status/run. `installLaunchAgent()` generates plist via `howett.net/plist`, writes to `~/Library/LaunchAgents/`, bootstraps with `launchctl`. `runWatchImport()` scans `/Volumes`, filters via `filterVolume()`, calls `importMedia()` for each match.
+- **diskutil.go** — `VolumeInfo` struct, `diskutilInfo()` (injectable for testing), `filterVolume()` multi-stage pipeline (ejectable check, DCIM folder, glob allowlist). `parseDiskutilPlist()` for parsing raw plist data.
+- **notify.go** — `sendNotification()` using `osascript` (fire-and-forget).
 
 ### Program Flow
 
-1. `run()` → parse config (defaults → YAML → CLI overrides via `wasFlagProvided`)
+1. `run()` → parse config (defaults → YAML → CLI overrides via `wasFlagProvided`). If `watch` subcommand, dispatch to `runWatch()`.
 2. `enumerateFiles()` — WalkDir source dir, skip symlinks, filter by media extensions, extract EXIF dates
 3. Plan destinations — date-based subdirs (`YYYY/MM`) and/or timestamp-based filenames (`YYYYMMDD_HHMMSS.ext`)
 4. Detect duplicates — O(1) lookup via `fileSizeTime` index, compare against existing destination files and within current batch
 5. `copyFiles()` — concurrent worker pool (default 4 workers), stream copy with `Sync()` + explicit `Close()` error check, cleanup partial files on failure, progress tracking with ANSI sticky line
 6. Optional: delete originals, eject drive (macOS only via `diskutil eject`)
 7. Errors go to stderr, exit code 1 on failure
+
+### Watch Mode Flow
+
+1. `launchd` triggers binary via `StartOnMount` → `gomediaimport watch --run`
+2. Load config from `~/.gomediaimportrc`
+3. Scan `/Volumes`, filter each through `filterVolume()` (diskutil → DCIM → allowlist)
+4. For each passing volume, call `importMedia()` with source set to mount point
+5. Send macOS notifications on detection/completion/error (if enabled)
+6. Exit 0 if all succeed, exit 1 if any failed
 
 ### Design Decisions
 
@@ -89,3 +101,5 @@ gomediaimport is a CLI tool that imports and organizes media files (photos/video
 - **Warnings to stderr**: checksum errors and setFileTimes failures logged to stderr, not swallowed
 - **xxHash64 for checksums**: faster than CRC32, 64-bit collision space is more than sufficient for non-adversarial duplicate detection
 - **Copy errors are fatal**: `copyFiles()` accumulates errors and returns the first one, ensuring the tool exits non-zero when files fail to copy
+- **Watch mode is one-shot**: LaunchAgent triggers the binary on every mount; the binary scans all volumes, imports, and exits. No daemon, no polling.
+- **diskutilInfoFunc injection**: `diskutil.go` uses a package-level function variable for `diskutilInfo` so tests can inject mock volume info without shelling out

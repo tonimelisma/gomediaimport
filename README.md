@@ -5,6 +5,7 @@ gomediaimport is a CLI tool that imports and organizes pictures and videos from 
 ## Features
 
 - Import media files from any source directory
+- **Auto-import watch mode**: macOS LaunchAgent that automatically imports when SD cards are inserted
 - Concurrent file copying with configurable worker count
 - Duplicate detection using file size, timestamps, and optional xxHash64 checksums
 - Optional file organization into date-based subdirectories (`YYYY/MM`)
@@ -37,15 +38,16 @@ To embed the version number, pass it via `-ldflags` as shown above. Without it, 
 ### Command-line options
 
 ```bash
-gomediaimport [--dest DEST] [--config CONFIG] [--organize-by-date]
-  [--rename-by-date-time] [--checksum-duplicates]
+gomediaimport [--source SOURCE] [--dest DEST] [--config CONFIG]
+  [--organize-by-date] [--rename-by-date-time] [--checksum-duplicates]
   [-v] [--dry-run] [--skip-thumbnails] [--delete-originals]
   [--auto-eject-macos] [--sidecar-default ACTION]
   [--workers N] [--version]
-  [SOURCE_DIR]
+
+gomediaimport watch [--install | --uninstall | --status]
 ```
 
-- `SOURCE_DIR`: Source directory for media files (optional if set in config file)
+- `--source SOURCE`: Source directory for media files (optional if set in config file)
 - `--dest DEST`: Destination directory for imported media (default: `~/Pictures`)
 - `--config CONFIG`: Path to config file (default: `~/.gomediaimportrc`)
 - `--organize-by-date`: Organize files into `YYYY/MM` subdirectories by creation date
@@ -60,26 +62,41 @@ gomediaimport [--dest DEST] [--config CONFIG] [--organize-by-date]
 - `--workers N`: Number of concurrent copy workers (default: 4)
 - `--version`: Print version and exit
 
+### Watch subcommand (macOS only)
+
+- `watch --install`: Install a macOS LaunchAgent that auto-imports media when SD cards are mounted
+- `watch --uninstall`: Remove the LaunchAgent
+- `watch --status`: Show whether the LaunchAgent is installed and display watch configuration
+
 ### Examples
 
 ```bash
 # Import media with default settings
-gomediaimport /media/sdcard
+gomediaimport --source /media/sdcard
 
 # Import using source directory from config file
 gomediaimport
 
 # Import media and organize by date into YYYY/MM subdirectories
-gomediaimport --organize-by-date /media/sdcard
+gomediaimport --organize-by-date --source /media/sdcard
 
 # Import, rename by date/time, and delete originals
-gomediaimport --rename-by-date-time --delete-originals /media/sdcard
+gomediaimport --rename-by-date-time --delete-originals --source /media/sdcard
 
 # Perform a dry run without making changes
-gomediaimport --dry-run /media/sdcard
+gomediaimport --dry-run --source /media/sdcard
 
 # Use checksums for more accurate duplicate detection
-gomediaimport --checksum-duplicates /media/sdcard
+gomediaimport --checksum-duplicates --source /media/sdcard
+
+# Install auto-import watch mode (macOS)
+gomediaimport watch --install
+
+# Check watch status
+gomediaimport watch --status
+
+# Uninstall watch mode
+gomediaimport watch --uninstall
 ```
 
 ## Configuration
@@ -89,6 +106,23 @@ gomediaimport can be configured using a YAML configuration file. By default, the
 An example configuration file [`gomediaimportrc`](gomediaimportrc) is provided in the root of this repository. Copy it to `~/.gomediaimportrc` and modify it according to your needs.
 
 Command-line arguments always override settings in the configuration file. Configuration precedence: CLI flags > YAML config file > built-in defaults.
+
+### Watch-specific configuration
+
+The following optional keys control watch mode behavior (all top-level in the YAML file):
+
+| Key | Type | Default | Description |
+|---|---|---|---|
+| `watch_require_dcim` | bool | `true` | Only import from volumes with a `DCIM/` directory |
+| `watch_volumes` | list of strings | `[]` (all) | Volume name allowlist, supports glob patterns (e.g. `"NIKON*"`, `"EOS_*"`). Empty = all passing volumes. |
+| `watch_notifications` | bool | `true` | Send macOS notifications on import start/complete/error |
+
+When the watch LaunchAgent triggers, it scans all volumes in `/Volumes` and filters them through a pipeline:
+1. **diskutil properties**: rejects non-ejectable or internal non-removable volumes
+2. **DCIM folder**: rejects volumes without a `DCIM/` directory (if `watch_require_dcim` is true)
+3. **Volume allowlist**: rejects volumes not matching any pattern in `watch_volumes` (if non-empty)
+
+Logs are written to `~/Library/Logs/gomediaimport.out.log` and `~/Library/Logs/gomediaimport.err.log`.
 
 ## Supported File Types
 

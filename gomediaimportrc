@@ -45,3 +45,17 @@ sidecar_default: delete
 
 # Number of concurrent copy workers (0 = default of 4)
 workers: 0
+
+# --- Watch mode settings (macOS only) ---
+# These settings control the auto-import LaunchAgent (gomediaimport watch --install)
+
+# Only import from volumes with a DCIM/ directory (default: true)
+watch_require_dcim: true
+
+# Volume name allowlist (glob patterns). Empty = all ejectable volumes.
+# watch_volumes:
+#   - "EOS_DIGITAL"
+#   - "NIKON*"
+
+# Send macOS notifications on import start/complete/error (default: true)
+watch_notifications: true
