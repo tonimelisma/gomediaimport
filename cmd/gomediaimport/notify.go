@@ -10,5 +10,8 @@ import (
 func sendNotification(title, message string) {
 	script := fmt.Sprintf(`display notification %q with title %q`, message, title)
 	cmd := exec.Command("osascript", "-e", script)
-	_ = cmd.Start() // fire and forget
+	if err := cmd.Start(); err != nil {
+		return
+	}
+	go func() { _ = cmd.Wait() }()
 }

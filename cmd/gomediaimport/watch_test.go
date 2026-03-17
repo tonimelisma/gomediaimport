@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/alexflint/go-arg"
 	"howett.net/plist"
 )
 
@@ -14,14 +15,14 @@ func TestWatchConfigDefaults(t *testing.T) {
 	if err := setDefaults(cfg); err != nil {
 		t.Fatalf("setDefaults failed: %v", err)
 	}
-	if !cfg.WatchRequireDCIM {
-		t.Error("expected WatchRequireDCIM default to be true")
+	if !cfg.Watch.RequireDCIM {
+		t.Error("expected Watch.RequireDCIM default to be true")
 	}
-	if !cfg.WatchNotifications {
-		t.Error("expected WatchNotifications default to be true")
+	if !cfg.Watch.Notifications {
+		t.Error("expected Watch.Notifications default to be true")
 	}
-	if len(cfg.WatchVolumes) != 0 {
-		t.Errorf("expected WatchVolumes default to be empty, got %v", cfg.WatchVolumes)
+	if len(cfg.Watch.Volumes) != 0 {
+		t.Errorf("expected Watch.Volumes default to be empty, got %v", cfg.Watch.Volumes)
 	}
 }
 
@@ -52,20 +53,20 @@ watch_notifications: false
 		t.Fatalf("parseConfigFile failed: %v", err)
 	}
 
-	if cfg.WatchRequireDCIM {
-		t.Error("expected WatchRequireDCIM=false from YAML")
+	if cfg.Watch.RequireDCIM {
+		t.Error("expected Watch.RequireDCIM=false from YAML")
 	}
-	if cfg.WatchNotifications {
-		t.Error("expected WatchNotifications=false from YAML")
+	if cfg.Watch.Notifications {
+		t.Error("expected Watch.Notifications=false from YAML")
 	}
-	if len(cfg.WatchVolumes) != 2 {
-		t.Fatalf("expected 2 watch volumes, got %d", len(cfg.WatchVolumes))
+	if len(cfg.Watch.Volumes) != 2 {
+		t.Fatalf("expected 2 watch volumes, got %d", len(cfg.Watch.Volumes))
 	}
-	if cfg.WatchVolumes[0] != "EOS_*" {
-		t.Errorf("expected first volume pattern 'EOS_*', got %q", cfg.WatchVolumes[0])
+	if cfg.Watch.Volumes[0] != "EOS_*" {
+		t.Errorf("expected first volume pattern 'EOS_*', got %q", cfg.Watch.Volumes[0])
 	}
-	if cfg.WatchVolumes[1] != "NIKON*" {
-		t.Errorf("expected second volume pattern 'NIKON*', got %q", cfg.WatchVolumes[1])
+	if cfg.Watch.Volumes[1] != "NIKON*" {
+		t.Errorf("expected second volume pattern 'NIKON*', got %q", cfg.Watch.Volumes[1])
 	}
 }
 
@@ -143,25 +144,23 @@ func TestInstallRequiresDestination(t *testing.T) {
 }
 
 func TestInstallRefusesIfAlreadyInstalled(t *testing.T) {
-	// installLaunchAgent checks for plist at the real path, so we test
-	// by verifying it returns an error when the plist file already exists.
-	// If the LaunchAgent happens to be installed on the test machine,
-	// the install call should refuse.
 	pPath, err := plistPath()
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	// If plist already exists, install should refuse
-	if _, err := os.Stat(pPath); err == nil {
-		cfg := config{DestDir: "/tmp/dest"}
-		err := installLaunchAgent(cfg)
-		if err == nil {
-			t.Error("expected error when plist already exists")
-		}
-		if !strings.Contains(err.Error(), "already installed") {
-			t.Errorf("expected 'already installed' error, got: %v", err)
-		}
+	if _, err := os.Stat(pPath); err != nil {
+		t.Skip("LaunchAgent plist not present on host, skipping")
+	}
+
+	cfg := config{DestDir: "/tmp/dest"}
+	err = installLaunchAgent(cfg)
+	if err == nil {
+		t.Error("expected error when plist already exists")
+	}
+	if !strings.Contains(err.Error(), "already installed") {
+		t.Errorf("expected 'already installed' error, got: %v", err)
 	}
 }
 
@@ -172,20 +171,24 @@ func TestUninstallWhenNotInstalled(t *testing.T) {
 	}
 
 	// Only test if plist does NOT exist (to avoid uninstalling a real agent)
-	if _, err := os.Stat(pPath); os.IsNotExist(err) {
-		err := uninstallLaunchAgent()
-		if err != nil {
-			t.Errorf("uninstall should succeed gracefully when not installed, got: %v", err)
-		}
+	if _, statErr := os.Stat(pPath); !os.IsNotExist(statErr) {
+		t.Skip("LaunchAgent plist present on host, skipping to avoid uninstalling real agent")
+	}
+
+	err = uninstallLaunchAgent()
+	if err != nil {
+		t.Errorf("uninstall should succeed gracefully when not installed, got: %v", err)
 	}
 }
 
 func TestStatusShowsConfig(t *testing.T) {
 	cfg := config{
-		DestDir:            "/Users/test/Pictures",
-		WatchRequireDCIM:   true,
-		WatchVolumes:       []string{"EOS_*"},
-		WatchNotifications: true,
+		DestDir: "/Users/test/Pictures",
+		Watch: WatchConfig{
+			RequireDCIM:   true,
+			Volumes:       []string{"EOS_*"},
+			Notifications: true,
+		},
 	}
 
 	// watchStatus prints to stdout — just verify it doesn't error
@@ -196,30 +199,24 @@ func TestStatusShowsConfig(t *testing.T) {
 }
 
 func TestWatchSubcommandParsing(t *testing.T) {
-	// Verify the watchArgs struct fields are accessible
-	w := &watchArgs{
-		Install:   true,
-		Uninstall: false,
-		Status:    false,
-		Run:       false,
+	// Verify that the watch subcommand is parsed correctly via arg.NewParser
+	var parsedArgs cliArgs
+	p, err := arg.NewParser(arg.Config{}, &parsedArgs)
+	if err != nil {
+		t.Fatal(err)
 	}
-	if !w.Install {
+	if err := p.Parse([]string{"watch", "--install"}); err != nil {
+		t.Fatalf("failed to parse watch --install: %v", err)
+	}
+	if parsedArgs.Watch == nil {
+		t.Fatal("expected Watch subcommand to be set")
+	}
+	if !parsedArgs.Watch.Install {
 		t.Error("expected Install=true")
 	}
 }
 
-func TestWatchRunPrintsTimestamp(t *testing.T) {
-	// runWatchImport reads /Volumes which is macOS-specific.
-	// Just verify it compiles and the function signature is correct.
-	// Full integration testing requires a mock filesystem.
-}
-
 func TestNoSubcommandRunsImport(t *testing.T) {
-	savedArgs := args
-	defer func() { args = savedArgs }()
-	oldArgs := os.Args
-	defer func() { os.Args = oldArgs }()
-
 	tmpDir, err := os.MkdirTemp("", "no-subcommand-test")
 	if err != nil {
 		t.Fatal(err)
@@ -227,36 +224,24 @@ func TestNoSubcommandRunsImport(t *testing.T) {
 	defer os.RemoveAll(tmpDir)
 
 	// No subcommand — should run import
-	os.Args = []string{"cmd", "--source", tmpDir}
-
-	if err := run(); err != nil {
+	if err := run([]string{"cmd", "--source", tmpDir, "--config", emptyConfigFile(t)}); err != nil {
 		t.Errorf("run() without subcommand should succeed: %v", err)
 	}
 }
 
 func TestSourceDirFlag(t *testing.T) {
-	savedArgs := args
-	defer func() { args = savedArgs }()
-	oldArgs := os.Args
-	defer func() { os.Args = oldArgs }()
-
 	tmpDir, err := os.MkdirTemp("", "source-flag-test")
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer os.RemoveAll(tmpDir)
 
-	os.Args = []string{"cmd", "--source", tmpDir}
-
-	if err := run(); err != nil {
+	if err := run([]string{"cmd", "--source", tmpDir, "--config", emptyConfigFile(t)}); err != nil {
 		t.Errorf("run() with --source flag returned error: %v", err)
 	}
 }
 
 func TestWatchImportEndToEnd(t *testing.T) {
-	origFunc := diskutilInfoFunc
-	defer func() { diskutilInfoFunc = origFunc }()
-
 	// Create a temp source with DCIM structure and a JPEG file
 	srcDir, err := os.MkdirTemp("", "watch-e2e-src")
 	if err != nil {
@@ -280,7 +265,7 @@ func TestWatchImportEndToEnd(t *testing.T) {
 	defer os.RemoveAll(destDir)
 
 	// Mock diskutil to report the source as an ejectable volume
-	diskutilInfoFunc = func(mountPoint string) (*VolumeInfo, error) {
+	mockFn := func(mountPoint string) (*VolumeInfo, error) {
 		if mountPoint == srcDir {
 			return &VolumeInfo{
 				VolumeName:                     filepath.Base(srcDir),
@@ -298,15 +283,17 @@ func TestWatchImportEndToEnd(t *testing.T) {
 	}
 
 	cfg := config{
-		DestDir:            destDir,
-		WatchRequireDCIM:   true,
-		WatchNotifications: false,
-		SidecarDefault:     SidecarDelete,
-		Sidecars:           make(map[string]SidecarAction),
+		DestDir:        destDir,
+		SidecarDefault: SidecarDelete,
+		Sidecars:       make(map[string]SidecarAction),
+		Watch: WatchConfig{
+			RequireDCIM:   true,
+			Notifications: false,
+		},
 	}
 
 	// filterVolume on the srcDir should pass
-	pass, err := filterVolume(srcDir, cfg)
+	pass, err := filterVolume(srcDir, cfg, mockFn)
 	if err != nil {
 		t.Fatalf("filterVolume failed: %v", err)
 	}
@@ -330,5 +317,57 @@ func TestWatchImportEndToEnd(t *testing.T) {
 	// Run again — should be idempotent (duplicate detected)
 	if err := importMedia(importCfg); err != nil {
 		t.Fatalf("second importMedia failed: %v", err)
+	}
+}
+
+func TestRunWatchImportScansVolumes(t *testing.T) {
+	// Create temp "volumes" dir with a subdirectory simulating a camera card
+	volumesDir, err := os.MkdirTemp("", "volumes")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(volumesDir)
+
+	cardDir := filepath.Join(volumesDir, "CARD")
+	if err := os.MkdirAll(filepath.Join(cardDir, "DCIM"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(cardDir, "DCIM", "IMG_0001.JPG"), []byte("data"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	destDir, err := os.MkdirTemp("", "dest")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(destDir)
+
+	mockFn := func(mp string) (*VolumeInfo, error) {
+		return &VolumeInfo{
+			VolumeName:                     filepath.Base(mp),
+			Ejectable:                      true,
+			Internal:                       false,
+			RemovableMediaOrExternalDevice: true,
+		}, nil
+	}
+
+	cfg := config{
+		DestDir:        destDir,
+		SidecarDefault: SidecarDelete,
+		Sidecars:       make(map[string]SidecarAction),
+		Watch: WatchConfig{
+			RequireDCIM:   true,
+			Notifications: false,
+		},
+	}
+
+	err = runWatchImport(cfg, volumesDir, mockFn)
+	if err != nil {
+		t.Fatalf("runWatchImport failed: %v", err)
+	}
+
+	// Verify file was copied
+	if _, err := os.Stat(filepath.Join(destDir, "IMG_0001.JPG")); os.IsNotExist(err) {
+		t.Error("expected file to be imported")
 	}
 }

@@ -1,5 +1,32 @@
 # Changelog
 
+## [v1.4.0] - 2026-03-17
+
+### Bug Fixes
+- **`deleteOriginalFiles()` now returns errors**: previously silently swallowed delete failures and always returned nil. Now accumulates errors and returns them via `errors.Join()`, ensuring exit code 1 when files fail to delete.
+- **`copyFiles()` returns all errors**: previously only returned the first error, discarding subsequent failures. Now returns all errors via `errors.Join()`.
+- **`sendNotification()` no longer leaks zombie processes**: added goroutine to reap osascript processes after `cmd.Start()`.
+- **`humanReadableDuration()` handles zero/negative durations**: guard at top returns "0s" for non-positive durations.
+
+### Improvements
+- **`watch --status` warns about stale binary path**: reads the plist and warns if the binary referenced in `ProgramArguments[0]` no longer exists on disk.
+- **Eliminated global `args` variable**: `run()` now takes `osArgs []string` parameter; all tests simplified (no save/restore of globals).
+- **`filterVolume()` takes `diskutilInfoFn` parameter**: replaced package-level `diskutilInfoFunc` global with explicit function parameter for testability.
+- **`runWatchImport()` takes injectable `volumesDir` and `diskutilFn`**: fully testable without mocking `/Volumes`. New `TestRunWatchImportScansVolumes` exercises the full scan-filter-import loop.
+- **`WatchConfig` sub-struct**: watch-related config fields grouped into embedded struct with `yaml:",inline"` (no config file format change).
+- **Extracted `planDestinations()`**: two-pass destination planning pulled out of `importMedia()` into a named function.
+- **Extracted `progressTracker` type**: ANSI progress display encapsulated in a dedicated type with atomic size tracking, separated from copy logic.
+- **Extracted `printSummary()` and `ejectAfterImport()`**: further decomposition of `importMedia()` for readability.
+
+### Testing
+- All `run()` tests now pass `--config` pointing to a temp file, isolating from host `~/.gomediaimportrc`.
+- Added `TestDeleteOriginalFilesReturnsError` — verifies error return on delete failure.
+- Added `TestHumanReadableDurationEdgeCases` — verifies zero, negative, and sub-second durations.
+- Added `TestRunWatchImportScansVolumes` — end-to-end test of the watch import scan loop with mock volumes.
+- Enhanced `TestWatchSubcommandParsing` — actually parses CLI args via `arg.NewParser`.
+- Deleted empty `TestWatchRunPrintsTimestamp` (now covered by `TestRunWatchImportScansVolumes`).
+- Conditional tests (`TestInstallRefusesIfAlreadyInstalled`, `TestUninstallWhenNotInstalled`) now use `t.Skip` with clear messages.
+
 ## [v1.3.0] - 2026-03-17
 
 ### Breaking Changes

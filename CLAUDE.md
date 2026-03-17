@@ -64,14 +64,14 @@ gomediaimport is a CLI tool that imports and organizes media files (photos/video
 
 ### Key Files
 
-- **main.go** — Entry point, `run()` function (extracted from `main()` for testability), CLI parsing (`go-arg`), YAML config loading, config validation, `wasFlagProvided()` helper for proper boolean override semantics. Three-tier config precedence: CLI flags > YAML file (`~/.gomediaimportrc`) > hardcoded defaults. `watch` subcommand dispatches to `runWatch()`. `SourceDir` is a `--source` flag (not positional) to support subcommands.
-- **import.go** — Core orchestrator. Defines `FileStatus` type with typed constants and `FileInfo` struct (central data type tracking source/dest paths, checksums, creation time, media category, status). `importMedia()` coordinates enumeration → copying → deletion → eject. Builds `fileSizeTime` index for O(1) duplicate lookup. `copyFiles()` uses a worker pool (`--workers` flag, default 4) with size-interleaved job scheduling for balanced load.
+- **main.go** — Entry point, `run(osArgs []string)` function (extracted from `main()` for testability, takes os args as parameter — no global state), CLI parsing via `arg.NewParser`+`Parse` (`go-arg`), YAML config loading, config validation, `wasFlagProvided(osArgs, flag)` pure function for proper boolean override semantics. Three-tier config precedence: CLI flags > YAML file (`~/.gomediaimportrc`) > hardcoded defaults. `watch` subcommand dispatches to `runWatch(cfg, *watchArgs)`. `WatchConfig` sub-struct embedded in `config` via `yaml:",inline"` for flat YAML keys.
+- **import.go** — Core orchestrator. Defines `FileStatus` type with typed constants and `FileInfo` struct (central data type tracking source/dest paths, checksums, creation time, media category, status). `importMedia()` coordinates enumeration → `planDestinations()` → `copyFiles()` → `deleteOriginalFiles()` → `printSummary()` → `ejectAfterImport()`. `planDestinations()` handles two-pass destination planning (non-sidecars then sidecars). `progressTracker` type encapsulates ANSI progress display with atomic size tracking. `deleteOriginalFiles()` accumulates and returns errors (not silently swallowed). `copyFiles()` returns all errors via `errors.Join()`.
 - **file_operations.go** — File enumeration via `filepath.WalkDir` (with symlink skipping), duplicate detection (size+timestamp index or xxHash64 checksum), `exists()` returns `(bool, error)`, unique filename generation (appends `_001` through `_999999` on conflicts), macOS disk eject.
 - **metadata.go** — EXIF/XMP extraction using `bep/imagemeta` (callback-based API with `ShouldHandleTag` set to accept all tags). `resolveImageFormat()` maps FileType/extension to imagemeta format constants. Falls back to filesystem mtime for unsupported formats. Video metadata via MP4/MOV mvhd box parsing.
 - **media_types.go** — `MediaCategory` (ProcessedPicture, RawPicture, Video, RawVideo, Sidecar) and `FileType` constants. Extension-to-type mapping in `fileTypes` slice. `SidecarAction` type with per-extension defaults and overrides.
-- **watch.go** — Watch mode orchestrator. `runWatch()` dispatches to install/uninstall/status/run. `installLaunchAgent()` generates plist via `howett.net/plist`, writes to `~/Library/LaunchAgents/`, bootstraps with `launchctl`. `runWatchImport()` scans `/Volumes`, filters via `filterVolume()`, calls `importMedia()` for each match.
-- **diskutil.go** — `VolumeInfo` struct, `diskutilInfo()` (injectable for testing), `filterVolume()` multi-stage pipeline (ejectable check, DCIM folder, glob allowlist). `parseDiskutilPlist()` for parsing raw plist data.
-- **notify.go** — `sendNotification()` using `osascript` (fire-and-forget).
+- **watch.go** — Watch mode orchestrator. `runWatch(cfg, *watchArgs)` dispatches to install/uninstall/status/run. `installLaunchAgent()` generates plist via `howett.net/plist`, writes to `~/Library/LaunchAgents/`, bootstraps with `launchctl`. `runWatchImport(cfg, volumesDir, diskutilFn)` scans configurable volumes dir, filters via `filterVolume()`, calls `importMedia()` for each match. `watchStatus()` warns if binary path in plist doesn't exist.
+- **diskutil.go** — `VolumeInfo` struct, `diskutilInfoFn` type, `diskutilInfoReal()` implementation, `filterVolume(mountPoint, cfg, diskutilFn)` multi-stage pipeline (ejectable check, DCIM folder, glob allowlist) — takes function parameter for testability. `parseDiskutilPlist()` for parsing raw plist data.
+- **notify.go** — `sendNotification()` using `osascript` (fire-and-forget, with goroutine to reap zombie processes).
 
 ### Program Flow
 
@@ -96,10 +96,11 @@ gomediaimport is a CLI tool that imports and organizes media files (photos/video
 
 - **Idempotent**: safe to re-run; duplicates detected by size+checksum, never re-copied
 - **No state file/database**: all state derived from filesystem inspection each run
-- **Boolean CLI override**: `wasFlagProvided()` checks `os.Args` so CLI `--flag=false` correctly overrides a `true` config file value
-- **Concurrent copying**: worker pool with configurable `--workers` (default 4); enumeration remains sequential
+- **No global state**: `run(osArgs)` takes args as parameter; `wasFlagProvided(osArgs, flag)` is a pure function; `filterVolume` and `runWatchImport` take injectable function parameters. Tests need no save/restore of globals.
+- **Boolean CLI override**: `wasFlagProvided()` checks the passed `osArgs` so CLI `--flag=false` correctly overrides a `true` config file value
+- **Concurrent copying**: worker pool with configurable `--workers` (default 4); enumeration remains sequential; `progressTracker` type manages progress display
 - **Warnings to stderr**: checksum errors and setFileTimes failures logged to stderr, not swallowed
 - **xxHash64 for checksums**: faster than CRC32, 64-bit collision space is more than sufficient for non-adversarial duplicate detection
-- **Copy errors are fatal**: `copyFiles()` accumulates errors and returns the first one, ensuring the tool exits non-zero when files fail to copy
+- **All errors propagated**: `copyFiles()` and `deleteOriginalFiles()` accumulate errors and return all of them via `errors.Join()`, ensuring the tool exits non-zero when operations fail
 - **Watch mode is one-shot**: LaunchAgent triggers the binary on every mount; the binary scans all volumes, imports, and exits. No daemon, no polling.
-- **diskutilInfoFunc injection**: `diskutil.go` uses a package-level function variable for `diskutilInfo` so tests can inject mock volume info without shelling out
+- **Dependency injection for testing**: `filterVolume` and `runWatchImport` take a `diskutilInfoFn` parameter; `runWatchImport` takes a configurable `volumesDir` path. Tests pass mock functions directly — no package-level globals needed.

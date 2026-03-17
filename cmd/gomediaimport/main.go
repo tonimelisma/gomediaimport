@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -44,7 +45,12 @@ func (cliArgs) Version() string {
 	return "gomediaimport " + version
 }
 
-var args cliArgs
+// WatchConfig holds watch mode configuration
+type WatchConfig struct {
+	RequireDCIM   bool     `yaml:"watch_require_dcim"`
+	Volumes       []string `yaml:"watch_volumes"`
+	Notifications bool     `yaml:"watch_notifications"`
+}
 
 // config holds the application configuration
 type config struct {
@@ -62,9 +68,7 @@ type config struct {
 	SidecarDefault     SidecarAction            `yaml:"sidecar_default"`
 	Sidecars           map[string]SidecarAction `yaml:"sidecars"`
 	Workers            int                      `yaml:"workers"`
-	WatchRequireDCIM   bool                     `yaml:"watch_require_dcim"`
-	WatchVolumes       []string                 `yaml:"watch_volumes"`
-	WatchNotifications bool                     `yaml:"watch_notifications"`
+	Watch              WatchConfig              `yaml:",inline"`
 }
 
 // setDefaults initializes the config with default values
@@ -87,8 +91,8 @@ func setDefaults(cfg *config) error {
 	cfg.SidecarDefault = SidecarDelete
 	cfg.Sidecars = make(map[string]SidecarAction)
 	cfg.Workers = 0
-	cfg.WatchRequireDCIM = true
-	cfg.WatchNotifications = true
+	cfg.Watch.RequireDCIM = true
+	cfg.Watch.Notifications = true
 	return nil
 }
 
@@ -153,8 +157,8 @@ func validateConfig(cfg *config) error {
 }
 
 // wasFlagProvided checks if a CLI flag was explicitly provided
-func wasFlagProvided(flagName string) bool {
-	for _, a := range os.Args[1:] {
+func wasFlagProvided(osArgs []string, flagName string) bool {
+	for _, a := range osArgs[1:] {
 		if a == flagName || strings.HasPrefix(a, flagName+"=") {
 			return true
 		}
@@ -162,7 +166,10 @@ func wasFlagProvided(flagName string) bool {
 	return false
 }
 
-func run() error {
+// errExitClean is a sentinel error for clean exit (help/version)
+var errExitClean = errors.New("clean exit")
+
+func run(osArgs []string) error {
 	// Create an instance of the config struct
 	cfg := config{}
 
@@ -172,11 +179,28 @@ func run() error {
 	}
 
 	// Parse command-line arguments
-	arg.MustParse(&args)
+	var parsedArgs cliArgs
+	parser, err := arg.NewParser(arg.Config{}, &parsedArgs)
+	if err != nil {
+		return fmt.Errorf("creating argument parser: %w", err)
+	}
+
+	err = parser.Parse(osArgs[1:])
+	switch {
+	case errors.Is(err, arg.ErrHelp):
+		parser.WriteHelp(os.Stdout)
+		return errExitClean
+	case errors.Is(err, arg.ErrVersion):
+		fmt.Println(parsedArgs.Version())
+		return errExitClean
+	case err != nil:
+		parser.WriteUsage(os.Stderr)
+		return fmt.Errorf("parsing arguments: %w", err)
+	}
 
 	// Apply config file path from command-line argument if provided
-	if args.ConfigFile != "" {
-		cfg.ConfigFile = args.ConfigFile
+	if parsedArgs.ConfigFile != "" {
+		cfg.ConfigFile = parsedArgs.ConfigFile
 	}
 
 	// Parse configuration file
@@ -185,46 +209,46 @@ func run() error {
 	}
 
 	// Watch subcommand — dispatch before CLI flag overrides
-	if args.Watch != nil {
-		return runWatch(cfg)
+	if parsedArgs.Watch != nil {
+		return runWatch(cfg, parsedArgs.Watch)
 	}
 
 	// Override with command-line arguments
-	if args.SourceDir != "" {
-		cfg.SourceDir = args.SourceDir
+	if parsedArgs.SourceDir != "" {
+		cfg.SourceDir = parsedArgs.SourceDir
 	}
-	if args.DestDir != "" {
-		cfg.DestDir = args.DestDir
+	if parsedArgs.DestDir != "" {
+		cfg.DestDir = parsedArgs.DestDir
 	}
-	if wasFlagProvided("--organize-by-date") {
-		cfg.OrganizeByDate = args.OrganizeByDate
+	if wasFlagProvided(osArgs, "--organize-by-date") {
+		cfg.OrganizeByDate = parsedArgs.OrganizeByDate
 	}
-	if wasFlagProvided("--rename-by-date-time") {
-		cfg.RenameByDateTime = args.RenameByDateTime
+	if wasFlagProvided(osArgs, "--rename-by-date-time") {
+		cfg.RenameByDateTime = parsedArgs.RenameByDateTime
 	}
-	if wasFlagProvided("--checksum-duplicates") {
-		cfg.ChecksumDuplicates = args.ChecksumDuplicates
+	if wasFlagProvided(osArgs, "--checksum-duplicates") {
+		cfg.ChecksumDuplicates = parsedArgs.ChecksumDuplicates
 	}
-	if wasFlagProvided("-v") || wasFlagProvided("--verbose") {
-		cfg.Verbose = args.Verbose
+	if wasFlagProvided(osArgs, "-v") || wasFlagProvided(osArgs, "--verbose") {
+		cfg.Verbose = parsedArgs.Verbose
 	}
-	if wasFlagProvided("--dry-run") {
-		cfg.DryRun = args.DryRun
+	if wasFlagProvided(osArgs, "--dry-run") {
+		cfg.DryRun = parsedArgs.DryRun
 	}
-	if wasFlagProvided("--skip-thumbnails") {
-		cfg.SkipThumbnails = args.SkipThumbnails
+	if wasFlagProvided(osArgs, "--skip-thumbnails") {
+		cfg.SkipThumbnails = parsedArgs.SkipThumbnails
 	}
-	if wasFlagProvided("--delete-originals") {
-		cfg.DeleteOriginals = args.DeleteOriginals
+	if wasFlagProvided(osArgs, "--delete-originals") {
+		cfg.DeleteOriginals = parsedArgs.DeleteOriginals
 	}
-	if wasFlagProvided("--auto-eject-macos") {
-		cfg.AutoEjectMacOS = args.AutoEjectMacOS
+	if wasFlagProvided(osArgs, "--auto-eject-macos") {
+		cfg.AutoEjectMacOS = parsedArgs.AutoEjectMacOS
 	}
-	if wasFlagProvided("--sidecar-default") {
-		cfg.SidecarDefault = SidecarAction(args.SidecarDefault)
+	if wasFlagProvided(osArgs, "--sidecar-default") {
+		cfg.SidecarDefault = SidecarAction(parsedArgs.SidecarDefault)
 	}
-	if wasFlagProvided("--workers") {
-		cfg.Workers = args.Workers
+	if wasFlagProvided(osArgs, "--workers") {
+		cfg.Workers = parsedArgs.Workers
 	}
 
 	// Validate the configuration
@@ -241,7 +265,10 @@ func run() error {
 }
 
 func main() {
-	if err := run(); err != nil {
+	if err := run(os.Args); err != nil {
+		if errors.Is(err, errExitClean) {
+			return
+		}
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
 	}

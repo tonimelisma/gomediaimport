@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -65,22 +66,42 @@ func importMedia(cfg config) error {
 		fmt.Println("Copy workers:", effectiveWorkers(cfg.Workers))
 	}
 
-	// Enumerate files in the source directory
 	files, err := enumerateFiles(cfg.SourceDir, cfg)
 	if err != nil {
 		return fmt.Errorf("failed to enumerate files: %w", err)
 	}
-
-	// Initialize ParentIndex to -1 for all files
 	for i := range files {
 		files[i].ParentIndex = -1
 	}
 
-	// Print the number of files enumerated
 	if cfg.Verbose {
 		fmt.Printf("Number of files enumerated: %d\n", len(files))
 	}
 
+	planDestinations(files, cfg)
+
+	if err := copyFiles(files, cfg); err != nil {
+		return fmt.Errorf("failed to copy files: %w", err)
+	}
+	if err := deleteOriginalFiles(files, cfg); err != nil {
+		return fmt.Errorf("failed to delete original files: %w", err)
+	}
+
+	if cfg.Verbose {
+		printSummary(files)
+	}
+
+	if cfg.AutoEjectMacOS && runtime.GOOS == "darwin" {
+		ejectAfterImport(cfg.SourceDir)
+	}
+
+	return nil
+}
+
+// planDestinations assigns DestDir and DestName for all files.
+// Pass 1: non-sidecar files (with duplicate detection).
+// Pass 2: sidecar files (follow parent or plan independently).
+func planDestinations(files []FileInfo, cfg config) {
 	// Pass 1: Process non-sidecar files
 	sizeTimeIndex := make(map[fileSizeTime][]int)
 	for i := range files {
@@ -88,14 +109,12 @@ func importMedia(cfg config) error {
 			continue
 		}
 
-		// Set destination directory
 		if cfg.OrganizeByDate {
 			files[i].DestDir = filepath.Join(cfg.DestDir, files[i].CreationDateTime.Format("2006/01"))
 		} else {
 			files[i].DestDir = cfg.DestDir
 		}
 
-		// Determine initial filename
 		var initialFilename string
 		if cfg.RenameByDateTime {
 			initialFilename = files[i].CreationDateTime.Format("20060102_150405") + filepath.Ext(files[i].SourceName)
@@ -103,13 +122,11 @@ func importMedia(cfg config) error {
 			initialFilename = files[i].SourceName
 		}
 
-		// Set final destination filename
 		if err := setFinalDestinationFilename(&files, i, initialFilename, cfg, sizeTimeIndex); err != nil {
 			files[i].Status = StatusUnnamable
 			continue
 		}
 
-		// Add to index for subsequent duplicate detection
 		key := fileSizeTime{Size: files[i].Size, Timestamp: files[i].CreationDateTime}
 		sizeTimeIndex[key] = append(sizeTimeIndex[key], i)
 	}
@@ -149,13 +166,11 @@ func importMedia(cfg config) error {
 			continue
 		}
 
-		// action == SidecarCopy — find parent
 		ext := filepath.Ext(files[i].SourceName)
 		base := strings.TrimSuffix(files[i].SourceName, ext)
 		key := parentKey{dir: files[i].SourceDir, baseName: strings.ToLower(base)}
 
 		if pi, ok := parentIndex[key]; ok {
-			// Parent found — derive destination from parent
 			files[i].ParentIndex = pi
 			parentFile := files[pi]
 			files[i].DestDir = parentFile.DestDir
@@ -163,7 +178,6 @@ func importMedia(cfg config) error {
 			parentDestBase := strings.TrimSuffix(parentFile.DestName, parentDestExt)
 			files[i].DestName = parentDestBase + ext
 		} else {
-			// Orphaned sidecar — plan destination independently using own mtime
 			if cfg.OrganizeByDate {
 				files[i].DestDir = filepath.Join(cfg.DestDir, files[i].CreationDateTime.Format("2006/01"))
 			} else {
@@ -176,63 +190,114 @@ func importMedia(cfg config) error {
 			}
 		}
 	}
+}
 
-	// Copy files
-	if err := copyFiles(files, cfg); err != nil {
-		return fmt.Errorf("failed to copy files: %w", err)
-	}
-
-	// Delete original files if configured
-	if err := deleteOriginalFiles(files, cfg); err != nil {
-		return fmt.Errorf("failed to delete original files: %w", err)
-	}
-
-	// Enumerate file statuses if verbose
-	if cfg.Verbose {
-		var preExisting, failed, copied, sidecarDeleted, total int
-		for _, file := range files {
-			total++
-			switch file.Status {
-			case StatusPreExisting:
-				preExisting++
-			case StatusFailed:
-				failed++
-			case StatusCopied:
-				copied++
-			case StatusSidecarDeleted:
-				sidecarDeleted++
-			}
-		}
-		fmt.Printf("\nFile status summary:\n")
-		fmt.Printf("Total files: %d\n", total)
-		fmt.Printf("Pre-existing: %d\n", preExisting)
-		fmt.Printf("Failed: %d\n", failed)
-		fmt.Printf("Copied: %d\n", copied)
-		if sidecarDeleted > 0 {
-			fmt.Printf("Sidecars marked for deletion: %d\n", sidecarDeleted)
+func printSummary(files []FileInfo) {
+	var preExisting, failed, copied, sidecarDeleted, total int
+	for _, file := range files {
+		total++
+		switch file.Status {
+		case StatusPreExisting:
+			preExisting++
+		case StatusFailed:
+			failed++
+		case StatusCopied:
+			copied++
+		case StatusSidecarDeleted:
+			sidecarDeleted++
 		}
 	}
+	fmt.Printf("\nFile status summary:\n")
+	fmt.Printf("Total files: %d\n", total)
+	fmt.Printf("Pre-existing: %d\n", preExisting)
+	fmt.Printf("Failed: %d\n", failed)
+	fmt.Printf("Copied: %d\n", copied)
+	if sidecarDeleted > 0 {
+		fmt.Printf("Sidecars marked for deletion: %d\n", sidecarDeleted)
+	}
+}
 
-	// If we've reached this point, all main import operations were successful.
-	if cfg.AutoEjectMacOS && runtime.GOOS == "darwin" {
-		fmt.Printf("INFO: Import operations completed successfully. Attempting auto-eject for %s.\n", cfg.SourceDir)
-		ejectErr := ejectDriveMacOS(cfg.SourceDir)
-		if ejectErr != nil {
-			// Log the error but do not change the function's success return,
-			// as the import itself was successful.
-			fmt.Printf("WARNING: Failed to eject source drive %s after successful import: %v\n", cfg.SourceDir, ejectErr)
+func ejectAfterImport(sourceDir string) {
+	fmt.Printf("INFO: Import operations completed successfully. Attempting auto-eject for %s.\n", sourceDir)
+	ejectErr := ejectDriveMacOS(sourceDir)
+	if ejectErr != nil {
+		fmt.Printf("WARNING: Failed to eject source drive %s after successful import: %v\n", sourceDir, ejectErr)
+	} else {
+		fmt.Printf("INFO: Successfully ejected source drive %s after successful import.\n", sourceDir)
+	}
+}
+
+type progressTracker struct {
+	totalSize int64
+	startTime time.Time
+	isTTY     bool
+	verbose   bool
+	copied    atomic.Int64
+	mu        sync.Mutex
+}
+
+func newProgressTracker(totalSize int64, verbose bool) *progressTracker {
+	return &progressTracker{
+		totalSize: totalSize,
+		startTime: time.Now(),
+		isTTY:     isatty.IsTerminal(os.Stdout.Fd()) || isatty.IsCygwinTerminal(os.Stdout.Fd()),
+		verbose:   verbose,
+	}
+}
+
+func (p *progressTracker) recordCopy(srcPath, destPath string, size int64) {
+	if !p.verbose {
+		return
+	}
+	newCopied := p.copied.Add(size)
+
+	p.mu.Lock()
+	var output string
+	if p.totalSize > 0 {
+		progress := float64(newCopied) / float64(p.totalSize)
+		elapsed := time.Since(p.startTime)
+		var speed float64
+		if elapsed.Seconds() > 0 {
+			speed = float64(newCopied) / elapsed.Seconds()
+		}
+		var remaining time.Duration
+		if progress > 0 {
+			estimatedTotal := time.Duration(float64(elapsed) / progress)
+			remaining = estimatedTotal - elapsed
+		}
+
+		if p.isTTY {
+			output = fmt.Sprintf("\033[2K\r%s -> %s\n\033[2K\r[%d%%] %s / %s — %s/s — %s remaining",
+				srcPath, destPath,
+				int(progress*100),
+				humanReadableSize(newCopied),
+				humanReadableSize(p.totalSize),
+				humanReadableSize(int64(speed)),
+				humanReadableDuration(remaining))
 		} else {
-			fmt.Printf("INFO: Successfully ejected source drive %s after successful import.\n", cfg.SourceDir)
+			output = fmt.Sprintf("%s -> %s\n[%d%%] %s / %s — %s/s — %s remaining\n",
+				srcPath, destPath,
+				int(progress*100),
+				humanReadableSize(newCopied),
+				humanReadableSize(p.totalSize),
+				humanReadableSize(int64(speed)),
+				humanReadableDuration(remaining))
 		}
+	} else {
+		output = fmt.Sprintf("%s -> %s\n", srcPath, destPath)
 	}
-	// The function will then return nil, indicating overall success of importMedia.
-	return nil
+	p.mu.Unlock()
+
+	fmt.Print(output)
+}
+
+func (p *progressTracker) finish() {
+	if p.verbose && p.totalSize > 0 && p.isTTY {
+		fmt.Println()
+	}
 }
 
 func copyFiles(files []FileInfo, cfg config) error {
-	// Detect whether stdout is a terminal for ANSI escape code output
-	isTTY := isatty.IsTerminal(os.Stdout.Fd()) || isatty.IsCygwinTerminal(os.Stdout.Fd())
-
 	// Build work list of file indices that need copying
 	var work []int
 	var totalSize int64
@@ -277,12 +342,11 @@ func copyFiles(files []FileInfo, cfg config) error {
 	close(jobs)
 
 	// Concurrency primitives
-	var copiedSize atomic.Int64
 	var mu sync.Mutex
 	var copyErrors []error
 	var wg sync.WaitGroup
-	startTime := time.Now()
 	numWorkers := effectiveWorkers(cfg.Workers)
+	tracker := newProgressTracker(totalSize, cfg.Verbose)
 
 	for w := 0; w < numWorkers; w++ {
 		wg.Add(1)
@@ -322,60 +386,16 @@ func copyFiles(files []FileInfo, cfg config) error {
 					mu.Unlock()
 				}
 
-				newCopied := copiedSize.Add(files[i].Size)
-
-				if cfg.Verbose {
-					mu.Lock()
-					if totalSize > 0 {
-						progress := float64(newCopied) / float64(totalSize)
-						elapsed := time.Since(startTime)
-						var speed float64
-						if elapsed.Seconds() > 0 {
-							speed = float64(newCopied) / elapsed.Seconds()
-						}
-						var remaining time.Duration
-						if progress > 0 {
-							estimatedTotal := time.Duration(float64(elapsed) / progress)
-							remaining = estimatedTotal - elapsed
-						}
-
-						if isTTY {
-							fmt.Printf("\033[2K\r%s -> %s\n", srcPath, destPath)
-							fmt.Printf("\033[2K\r[%d%%] %s / %s — %s/s — %s remaining",
-								int(progress*100),
-								humanReadableSize(newCopied),
-								humanReadableSize(totalSize),
-								humanReadableSize(int64(speed)),
-								humanReadableDuration(remaining),
-							)
-						} else {
-							fmt.Printf("%s -> %s\n", srcPath, destPath)
-							fmt.Printf("[%d%%] %s / %s — %s/s — %s remaining\n",
-								int(progress*100),
-								humanReadableSize(newCopied),
-								humanReadableSize(totalSize),
-								humanReadableSize(int64(speed)),
-								humanReadableDuration(remaining),
-							)
-						}
-					} else {
-						fmt.Printf("%s -> %s\n", srcPath, destPath)
-					}
-					mu.Unlock()
-				}
+				tracker.recordCopy(srcPath, destPath, files[i].Size)
 			}
 		}()
 	}
 
 	wg.Wait()
-
-	// Clear the sticky progress line (only needed in TTY mode where it has no trailing newline)
-	if cfg.Verbose && totalSize > 0 && isTTY {
-		fmt.Println()
-	}
+	tracker.finish()
 
 	if len(copyErrors) > 0 {
-		return copyErrors[0]
+		return errors.Join(copyErrors...)
 	}
 
 	return nil
@@ -422,6 +442,7 @@ func deleteOriginalFiles(files []FileInfo, cfg config) error {
 		return nil
 	}
 
+	var deleteErrors []error
 	var deletedCount int
 	var deletedSize int64
 
@@ -432,6 +453,7 @@ func deleteOriginalFiles(files []FileInfo, cfg config) error {
 				err := os.Remove(sourcePath)
 				if err != nil {
 					fmt.Fprintf(os.Stderr, "Failed to delete %s: %v\n", sourcePath, err)
+					deleteErrors = append(deleteErrors, fmt.Errorf("failed to delete %s: %w", sourcePath, err))
 					continue
 				}
 			}
@@ -448,6 +470,9 @@ func deleteOriginalFiles(files []FileInfo, cfg config) error {
 		fmt.Printf("Total size of deleted files: %s\n", humanReadableSize(deletedSize))
 	}
 
+	if len(deleteErrors) > 0 {
+		return errors.Join(deleteErrors...)
+	}
 	return nil
 }
 
@@ -465,6 +490,9 @@ func humanReadableSize(size int64) string {
 }
 
 func humanReadableDuration(d time.Duration) string {
+	if d <= 0 {
+		return "0s"
+	}
 	days := int(d.Hours()) / 24
 	hours := int(d.Hours()) % 24
 	minutes := int(d.Minutes()) % 60

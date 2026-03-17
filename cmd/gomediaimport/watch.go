@@ -25,19 +25,19 @@ type launchAgentPlist struct {
 	EnvironmentVariables map[string]string `plist:"EnvironmentVariables"`
 }
 
-func runWatch(cfg config) error {
+func runWatch(cfg config, watch *watchArgs) error {
 	if runtime.GOOS != "darwin" {
 		return fmt.Errorf("watch mode is only supported on macOS")
 	}
 	switch {
-	case args.Watch.Install:
+	case watch.Install:
 		return installLaunchAgent(cfg)
-	case args.Watch.Uninstall:
+	case watch.Uninstall:
 		return uninstallLaunchAgent()
-	case args.Watch.Status:
+	case watch.Status:
 		return watchStatus(cfg)
-	case args.Watch.Run:
-		return runWatchImport(cfg)
+	case watch.Run:
+		return runWatchImport(cfg, "/Volumes", diskutilInfoReal)
 	default:
 		return fmt.Errorf("specify --install, --uninstall, or --status")
 	}
@@ -176,29 +176,42 @@ func watchStatus(cfg config) error {
 	if installed {
 		fmt.Println("Watch status: installed")
 		fmt.Printf("  Plist: %s\n", pPath)
+
+		// Check if binary path in plist still exists
+		data, err := os.ReadFile(pPath)
+		if err == nil {
+			var p launchAgentPlist
+			if _, err := plist.Unmarshal(data, &p); err == nil && len(p.ProgramArguments) > 0 {
+				binaryPath := p.ProgramArguments[0]
+				fmt.Printf("  Binary: %s\n", binaryPath)
+				if _, err := os.Stat(binaryPath); os.IsNotExist(err) {
+					fmt.Printf("  WARNING: binary not found at %s — reinstall with 'watch --uninstall && watch --install'\n", binaryPath)
+				}
+			}
+		}
 	} else {
 		fmt.Println("Watch status: not installed")
 	}
 
 	fmt.Printf("\nWatch configuration:\n")
 	fmt.Printf("  Destination directory: %s\n", cfg.DestDir)
-	fmt.Printf("  Require DCIM folder: %v\n", cfg.WatchRequireDCIM)
-	if len(cfg.WatchVolumes) > 0 {
-		fmt.Printf("  Volume allowlist: %v\n", cfg.WatchVolumes)
+	fmt.Printf("  Require DCIM folder: %v\n", cfg.Watch.RequireDCIM)
+	if len(cfg.Watch.Volumes) > 0 {
+		fmt.Printf("  Volume allowlist: %v\n", cfg.Watch.Volumes)
 	} else {
 		fmt.Printf("  Volume allowlist: (all volumes)\n")
 	}
-	fmt.Printf("  Notifications: %v\n", cfg.WatchNotifications)
+	fmt.Printf("  Notifications: %v\n", cfg.Watch.Notifications)
 
 	return nil
 }
 
-func runWatchImport(cfg config) error {
+func runWatchImport(cfg config, volumesDir string, diskutilFn diskutilInfoFn) error {
 	fmt.Printf("[%s] Watch import triggered\n", time.Now().Format("2006-01-02 15:04:05"))
 
-	entries, err := os.ReadDir("/Volumes")
+	entries, err := os.ReadDir(volumesDir)
 	if err != nil {
-		return fmt.Errorf("failed to read /Volumes: %w", err)
+		return fmt.Errorf("failed to read %s: %w", volumesDir, err)
 	}
 
 	var firstErr error
@@ -209,9 +222,9 @@ func runWatchImport(cfg config) error {
 			continue
 		}
 
-		mountPoint := filepath.Join("/Volumes", entry.Name())
+		mountPoint := filepath.Join(volumesDir, entry.Name())
 
-		pass, err := filterVolume(mountPoint, cfg)
+		pass, err := filterVolume(mountPoint, cfg, diskutilFn)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Warning: error filtering volume %s: %v\n", entry.Name(), err)
 			continue
@@ -221,7 +234,7 @@ func runWatchImport(cfg config) error {
 		}
 
 		fmt.Printf("Importing from volume: %s\n", entry.Name())
-		if cfg.WatchNotifications {
+		if cfg.Watch.Notifications {
 			sendNotification("Go Media Import", fmt.Sprintf("Camera card detected: %s — importing to %s...", entry.Name(), cfg.DestDir))
 		}
 
@@ -231,7 +244,7 @@ func runWatchImport(cfg config) error {
 		if err := validateConfig(&importCfg); err != nil {
 			errMsg := fmt.Sprintf("invalid config for volume %s: %v", entry.Name(), err)
 			fmt.Fprintf(os.Stderr, "Error: %s\n", errMsg)
-			if cfg.WatchNotifications {
+			if cfg.Watch.Notifications {
 				sendNotification("Go Media Import", fmt.Sprintf("Import failed for %s: %s", entry.Name(), err))
 			}
 			if firstErr == nil {
@@ -243,7 +256,7 @@ func runWatchImport(cfg config) error {
 		if err := importMedia(importCfg); err != nil {
 			errMsg := fmt.Sprintf("import failed for %s: %v", entry.Name(), err)
 			fmt.Fprintf(os.Stderr, "Error: %s\n", errMsg)
-			if cfg.WatchNotifications {
+			if cfg.Watch.Notifications {
 				sendNotification("Go Media Import", fmt.Sprintf("Import failed for %s: %s", entry.Name(), err))
 			}
 			if firstErr == nil {
@@ -253,7 +266,7 @@ func runWatchImport(cfg config) error {
 		}
 
 		importCount++
-		if cfg.WatchNotifications {
+		if cfg.Watch.Notifications {
 			sendNotification("Go Media Import", fmt.Sprintf("Import complete from %s", entry.Name()))
 		}
 	}

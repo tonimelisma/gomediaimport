@@ -58,10 +58,7 @@ func TestDiskutilInfoParsing(t *testing.T) {
 }
 
 func TestFilterVolumeRejectsNonEjectable(t *testing.T) {
-	origFunc := diskutilInfoFunc
-	defer func() { diskutilInfoFunc = origFunc }()
-
-	diskutilInfoFunc = func(mountPoint string) (*VolumeInfo, error) {
+	mockFn := func(mountPoint string) (*VolumeInfo, error) {
 		return &VolumeInfo{
 			VolumeName: "Macintosh HD",
 			Ejectable:  false,
@@ -69,8 +66,8 @@ func TestFilterVolumeRejectsNonEjectable(t *testing.T) {
 		}, nil
 	}
 
-	cfg := config{WatchRequireDCIM: false}
-	pass, err := filterVolume("/Volumes/Macintosh HD", cfg)
+	cfg := config{Watch: WatchConfig{RequireDCIM: false}}
+	pass, err := filterVolume("/Volumes/Macintosh HD", cfg, mockFn)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -80,10 +77,7 @@ func TestFilterVolumeRejectsNonEjectable(t *testing.T) {
 }
 
 func TestFilterVolumeRejectsInternal(t *testing.T) {
-	origFunc := diskutilInfoFunc
-	defer func() { diskutilInfoFunc = origFunc }()
-
-	diskutilInfoFunc = func(mountPoint string) (*VolumeInfo, error) {
+	mockFn := func(mountPoint string) (*VolumeInfo, error) {
 		return &VolumeInfo{
 			VolumeName:                     "InternalDrive",
 			Ejectable:                      true,
@@ -92,8 +86,8 @@ func TestFilterVolumeRejectsInternal(t *testing.T) {
 		}, nil
 	}
 
-	cfg := config{WatchRequireDCIM: false}
-	pass, err := filterVolume("/Volumes/InternalDrive", cfg)
+	cfg := config{Watch: WatchConfig{RequireDCIM: false}}
+	pass, err := filterVolume("/Volumes/InternalDrive", cfg, mockFn)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -103,10 +97,7 @@ func TestFilterVolumeRejectsInternal(t *testing.T) {
 }
 
 func TestFilterVolumeAcceptsEjectableInternal(t *testing.T) {
-	origFunc := diskutilInfoFunc
-	defer func() { diskutilInfoFunc = origFunc }()
-
-	diskutilInfoFunc = func(mountPoint string) (*VolumeInfo, error) {
+	mockFn := func(mountPoint string) (*VolumeInfo, error) {
 		return &VolumeInfo{
 			VolumeName:                     "SD_CARD",
 			Ejectable:                      true,
@@ -115,8 +106,8 @@ func TestFilterVolumeAcceptsEjectableInternal(t *testing.T) {
 		}, nil
 	}
 
-	cfg := config{WatchRequireDCIM: false}
-	pass, err := filterVolume("/Volumes/SD_CARD", cfg)
+	cfg := config{Watch: WatchConfig{RequireDCIM: false}}
+	pass, err := filterVolume("/Volumes/SD_CARD", cfg, mockFn)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -126,15 +117,12 @@ func TestFilterVolumeAcceptsEjectableInternal(t *testing.T) {
 }
 
 func TestFilterVolumeRejectsDiskutilFailure(t *testing.T) {
-	origFunc := diskutilInfoFunc
-	defer func() { diskutilInfoFunc = origFunc }()
-
-	diskutilInfoFunc = func(mountPoint string) (*VolumeInfo, error) {
+	mockFn := func(mountPoint string) (*VolumeInfo, error) {
 		return nil, fmt.Errorf("diskutil failed")
 	}
 
-	cfg := config{WatchRequireDCIM: false}
-	pass, err := filterVolume("/Volumes/SomeVolume", cfg)
+	cfg := config{Watch: WatchConfig{RequireDCIM: false}}
+	pass, err := filterVolume("/Volumes/SomeVolume", cfg, mockFn)
 	if err == nil {
 		t.Error("expected error from diskutil failure")
 	}
@@ -144,16 +132,13 @@ func TestFilterVolumeRejectsDiskutilFailure(t *testing.T) {
 }
 
 func TestFilterVolumeRejectsNoDCIM(t *testing.T) {
-	origFunc := diskutilInfoFunc
-	defer func() { diskutilInfoFunc = origFunc }()
-
 	tmpDir, err := os.MkdirTemp("", "filter-test")
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer os.RemoveAll(tmpDir)
 
-	diskutilInfoFunc = func(mountPoint string) (*VolumeInfo, error) {
+	mockFn := func(mountPoint string) (*VolumeInfo, error) {
 		return &VolumeInfo{
 			VolumeName:                     "CAMERA",
 			Ejectable:                      true,
@@ -162,8 +147,8 @@ func TestFilterVolumeRejectsNoDCIM(t *testing.T) {
 		}, nil
 	}
 
-	cfg := config{WatchRequireDCIM: true}
-	pass, err := filterVolume(tmpDir, cfg)
+	cfg := config{Watch: WatchConfig{RequireDCIM: true}}
+	pass, err := filterVolume(tmpDir, cfg, mockFn)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -173,16 +158,13 @@ func TestFilterVolumeRejectsNoDCIM(t *testing.T) {
 }
 
 func TestFilterVolumeAcceptsNoDCIMWhenDisabled(t *testing.T) {
-	origFunc := diskutilInfoFunc
-	defer func() { diskutilInfoFunc = origFunc }()
-
 	tmpDir, err := os.MkdirTemp("", "filter-test")
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer os.RemoveAll(tmpDir)
 
-	diskutilInfoFunc = func(mountPoint string) (*VolumeInfo, error) {
+	mockFn := func(mountPoint string) (*VolumeInfo, error) {
 		return &VolumeInfo{
 			VolumeName:                     "CAMERA",
 			Ejectable:                      true,
@@ -191,8 +173,8 @@ func TestFilterVolumeAcceptsNoDCIMWhenDisabled(t *testing.T) {
 		}, nil
 	}
 
-	cfg := config{WatchRequireDCIM: false}
-	pass, err := filterVolume(tmpDir, cfg)
+	cfg := config{Watch: WatchConfig{RequireDCIM: false}}
+	pass, err := filterVolume(tmpDir, cfg, mockFn)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -202,9 +184,6 @@ func TestFilterVolumeAcceptsNoDCIMWhenDisabled(t *testing.T) {
 }
 
 func TestFilterVolumeWithDCIM(t *testing.T) {
-	origFunc := diskutilInfoFunc
-	defer func() { diskutilInfoFunc = origFunc }()
-
 	tmpDir, err := os.MkdirTemp("", "filter-test")
 	if err != nil {
 		t.Fatal(err)
@@ -215,7 +194,7 @@ func TestFilterVolumeWithDCIM(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	diskutilInfoFunc = func(mountPoint string) (*VolumeInfo, error) {
+	mockFn := func(mountPoint string) (*VolumeInfo, error) {
 		return &VolumeInfo{
 			VolumeName:                     "CAMERA",
 			Ejectable:                      true,
@@ -224,8 +203,8 @@ func TestFilterVolumeWithDCIM(t *testing.T) {
 		}, nil
 	}
 
-	cfg := config{WatchRequireDCIM: true}
-	pass, err := filterVolume(tmpDir, cfg)
+	cfg := config{Watch: WatchConfig{RequireDCIM: true}}
+	pass, err := filterVolume(tmpDir, cfg, mockFn)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -235,10 +214,7 @@ func TestFilterVolumeWithDCIM(t *testing.T) {
 }
 
 func TestFilterVolumeAllowlistMatch(t *testing.T) {
-	origFunc := diskutilInfoFunc
-	defer func() { diskutilInfoFunc = origFunc }()
-
-	diskutilInfoFunc = func(mountPoint string) (*VolumeInfo, error) {
+	mockFn := func(mountPoint string) (*VolumeInfo, error) {
 		return &VolumeInfo{
 			VolumeName:                     "EOS_DIGITAL",
 			Ejectable:                      true,
@@ -248,10 +224,12 @@ func TestFilterVolumeAllowlistMatch(t *testing.T) {
 	}
 
 	cfg := config{
-		WatchRequireDCIM: false,
-		WatchVolumes:     []string{"EOS_*", "NIKON*"},
+		Watch: WatchConfig{
+			RequireDCIM: false,
+			Volumes:     []string{"EOS_*", "NIKON*"},
+		},
 	}
-	pass, err := filterVolume("/Volumes/EOS_DIGITAL", cfg)
+	pass, err := filterVolume("/Volumes/EOS_DIGITAL", cfg, mockFn)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -261,10 +239,7 @@ func TestFilterVolumeAllowlistMatch(t *testing.T) {
 }
 
 func TestFilterVolumeAllowlistReject(t *testing.T) {
-	origFunc := diskutilInfoFunc
-	defer func() { diskutilInfoFunc = origFunc }()
-
-	diskutilInfoFunc = func(mountPoint string) (*VolumeInfo, error) {
+	mockFn := func(mountPoint string) (*VolumeInfo, error) {
 		return &VolumeInfo{
 			VolumeName:                     "USB_DRIVE",
 			Ejectable:                      true,
@@ -274,10 +249,12 @@ func TestFilterVolumeAllowlistReject(t *testing.T) {
 	}
 
 	cfg := config{
-		WatchRequireDCIM: false,
-		WatchVolumes:     []string{"EOS_*", "NIKON*"},
+		Watch: WatchConfig{
+			RequireDCIM: false,
+			Volumes:     []string{"EOS_*", "NIKON*"},
+		},
 	}
-	pass, err := filterVolume("/Volumes/USB_DRIVE", cfg)
+	pass, err := filterVolume("/Volumes/USB_DRIVE", cfg, mockFn)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -287,10 +264,7 @@ func TestFilterVolumeAllowlistReject(t *testing.T) {
 }
 
 func TestFilterVolumeEmptyAllowlistAcceptsAll(t *testing.T) {
-	origFunc := diskutilInfoFunc
-	defer func() { diskutilInfoFunc = origFunc }()
-
-	diskutilInfoFunc = func(mountPoint string) (*VolumeInfo, error) {
+	mockFn := func(mountPoint string) (*VolumeInfo, error) {
 		return &VolumeInfo{
 			VolumeName:                     "ANYTHING",
 			Ejectable:                      true,
@@ -299,11 +273,8 @@ func TestFilterVolumeEmptyAllowlistAcceptsAll(t *testing.T) {
 		}, nil
 	}
 
-	cfg := config{
-		WatchRequireDCIM: false,
-		WatchVolumes:     nil,
-	}
-	pass, err := filterVolume("/Volumes/ANYTHING", cfg)
+	cfg := config{Watch: WatchConfig{RequireDCIM: false}}
+	pass, err := filterVolume("/Volumes/ANYTHING", cfg, mockFn)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -313,9 +284,6 @@ func TestFilterVolumeEmptyAllowlistAcceptsAll(t *testing.T) {
 }
 
 func TestFilterVolumeGlobPatterns(t *testing.T) {
-	origFunc := diskutilInfoFunc
-	defer func() { diskutilInfoFunc = origFunc }()
-
 	tests := []struct {
 		name       string
 		volumeName string
@@ -330,7 +298,7 @@ func TestFilterVolumeGlobPatterns(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			diskutilInfoFunc = func(mountPoint string) (*VolumeInfo, error) {
+			mockFn := func(mountPoint string) (*VolumeInfo, error) {
 				return &VolumeInfo{
 					VolumeName:                     tt.volumeName,
 					Ejectable:                      true,
@@ -340,10 +308,12 @@ func TestFilterVolumeGlobPatterns(t *testing.T) {
 			}
 
 			cfg := config{
-				WatchRequireDCIM: false,
-				WatchVolumes:     tt.patterns,
+				Watch: WatchConfig{
+					RequireDCIM: false,
+					Volumes:     tt.patterns,
+				},
 			}
-			pass, err := filterVolume("/Volumes/test", cfg)
+			pass, err := filterVolume("/Volumes/test", cfg, mockFn)
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}

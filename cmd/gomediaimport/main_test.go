@@ -10,6 +10,18 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// emptyConfigFile creates a temporary empty config file for test isolation
+func emptyConfigFile(t *testing.T) string {
+	t.Helper()
+	f, err := os.CreateTemp("", "test-config-*.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.Close()
+	t.Cleanup(func() { os.Remove(f.Name()) })
+	return f.Name()
+}
+
 // TestSetDefaults tests the setDefaults function
 func TestSetDefaults(t *testing.T) {
 	cfg := &config{}
@@ -195,12 +207,6 @@ func TestValidateConfigDestination(t *testing.T) {
 
 // TestRun tests the run function
 func TestRun(t *testing.T) {
-	// Save original args and restore them after the test
-	savedArgs := args
-	defer func() { args = savedArgs }()
-	oldArgs := os.Args
-	defer func() { os.Args = oldArgs }()
-
 	// Create a temporary source directory
 	tmpDir, err := os.MkdirTemp("", "source")
 	if err != nil {
@@ -208,21 +214,13 @@ func TestRun(t *testing.T) {
 	}
 	defer os.RemoveAll(tmpDir)
 
-	// Set up test arguments
-	os.Args = []string{"cmd", "--source", tmpDir}
-
 	// Test that run() completes without error
-	if err := run(); err != nil {
+	if err := run([]string{"cmd", "--source", tmpDir, "--config", emptyConfigFile(t)}); err != nil {
 		t.Errorf("run() returned error: %v", err)
 	}
 }
 
 func TestRunSourceFromConfig(t *testing.T) {
-	savedArgs := args
-	defer func() { args = savedArgs }()
-	oldArgs := os.Args
-	defer func() { os.Args = oldArgs }()
-
 	// Create a temporary source directory
 	tmpDir, err := os.MkdirTemp("", "source")
 	if err != nil {
@@ -245,19 +243,12 @@ func TestRunSourceFromConfig(t *testing.T) {
 	}
 
 	// No positional arg — source comes from config file only
-	os.Args = []string{"cmd", "--config", configFile.Name()}
-
-	if err := run(); err != nil {
+	if err := run([]string{"cmd", "--config", configFile.Name()}); err != nil {
 		t.Errorf("run() returned error when source dir is in config file: %v", err)
 	}
 }
 
 func TestRunNoSourceAnywhere(t *testing.T) {
-	savedArgs := args
-	defer func() { args = savedArgs }()
-	oldArgs := os.Args
-	defer func() { os.Args = oldArgs }()
-
 	// Create an empty config file (no source_directory)
 	configFile, err := os.CreateTemp("", "config-*.yaml")
 	if err != nil {
@@ -272,23 +263,14 @@ func TestRunNoSourceAnywhere(t *testing.T) {
 	}
 
 	// No positional arg, no source in config
-	os.Args = []string{"cmd", "--config", configFile.Name()}
-
-	err = run()
+	err = run([]string{"cmd", "--config", configFile.Name()})
 	if err == nil {
 		t.Error("run() should return error when source dir is not provided anywhere")
 	}
 }
 
 func TestRunInvalidSource(t *testing.T) {
-	savedArgs := args
-	defer func() { args = savedArgs }()
-	oldArgs := os.Args
-	defer func() { os.Args = oldArgs }()
-
-	os.Args = []string{"cmd", "--source", "/non/existent/source/dir"}
-
-	err := run()
+	err := run([]string{"cmd", "--source", "/non/existent/source/dir", "--config", emptyConfigFile(t)})
 	if err == nil {
 		t.Error("run() should return error for non-existent source directory")
 	}
@@ -365,7 +347,7 @@ func TestConfigMarshalUnmarshal(t *testing.T) {
 		ChecksumDuplicates: true,
 		SidecarDefault:     SidecarDelete,
 		Sidecars:           map[string]SidecarAction{"xmp": SidecarCopy},
-		WatchVolumes:       []string{},
+		Watch:              WatchConfig{Volumes: []string{}},
 	}
 
 	data, err := yaml.Marshal(cfg)
@@ -421,18 +403,15 @@ func TestConfigFilePermissions(t *testing.T) {
 }
 
 func TestWasFlagProvided(t *testing.T) {
-	oldArgs := os.Args
-	defer func() { os.Args = oldArgs }()
+	osArgs := []string{"cmd", "--source", "/some/dir", "--verbose", "--auto-eject-macos=false"}
 
-	os.Args = []string{"cmd", "--source", "/some/dir", "--verbose", "--auto-eject-macos=false"}
-
-	if !wasFlagProvided("--verbose") {
+	if !wasFlagProvided(osArgs, "--verbose") {
 		t.Error("expected --verbose to be detected")
 	}
-	if !wasFlagProvided("--auto-eject-macos") {
+	if !wasFlagProvided(osArgs, "--auto-eject-macos") {
 		t.Error("expected --auto-eject-macos to be detected (=false form)")
 	}
-	if wasFlagProvided("--dry-run") {
+	if wasFlagProvided(osArgs, "--dry-run") {
 		t.Error("expected --dry-run to NOT be detected")
 	}
 }
@@ -494,26 +473,27 @@ func TestAutoEjectMacOSConfiguration(t *testing.T) {
 		tmpFileName := createTempConfig(t, "auto_eject_macos: false")
 		defer os.Remove(tmpFileName)
 
-		savedArgs := args
-		defer func() { args = savedArgs }()
-
-		oldOsArgs := os.Args
-		defer func() { os.Args = oldOsArgs }()
-
-		os.Args = []string{"cmd", "--source", "/tmp", "--auto-eject-macos"}
-		args.AutoEjectMacOS = true
-		args.ConfigFile = tmpFileName
+		osArgs := []string{"cmd", "--source", "/tmp", "--auto-eject-macos"}
 
 		cfg := &config{}
 		if err := setDefaults(cfg); err != nil {
 			t.Fatalf("setDefaults failed: %v", err)
 		}
-		cfg.ConfigFile = args.ConfigFile
+		cfg.ConfigFile = tmpFileName
 		if err := parseConfigFile(cfg); err != nil {
 			t.Fatalf("parseConfigFile failed: %v", err)
 		}
-		if wasFlagProvided("--auto-eject-macos") {
-			cfg.AutoEjectMacOS = args.AutoEjectMacOS
+
+		// Parse CLI args to get the flag value
+		var parsedArgs cliArgs
+		p, err := arg.NewParser(arg.Config{}, &parsedArgs)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_ = p.Parse(osArgs[1:])
+
+		if wasFlagProvided(osArgs, "--auto-eject-macos") {
+			cfg.AutoEjectMacOS = parsedArgs.AutoEjectMacOS
 		}
 
 		if !cfg.AutoEjectMacOS {
@@ -525,26 +505,27 @@ func TestAutoEjectMacOSConfiguration(t *testing.T) {
 		tmpFileName := createTempConfig(t, "auto_eject_macos: true")
 		defer os.Remove(tmpFileName)
 
-		savedArgs := args
-		defer func() { args = savedArgs }()
-
-		oldOsArgs := os.Args
-		defer func() { os.Args = oldOsArgs }()
-
-		os.Args = []string{"cmd", "--source", "/tmp", "--auto-eject-macos=false"}
-		args.AutoEjectMacOS = false
-		args.ConfigFile = tmpFileName
+		osArgs := []string{"cmd", "--source", "/tmp", "--auto-eject-macos=false"}
 
 		cfg := &config{}
 		if err := setDefaults(cfg); err != nil {
 			t.Fatalf("setDefaults failed: %v", err)
 		}
-		cfg.ConfigFile = args.ConfigFile
+		cfg.ConfigFile = tmpFileName
 		if err := parseConfigFile(cfg); err != nil {
 			t.Fatalf("parseConfigFile failed: %v", err)
 		}
-		if wasFlagProvided("--auto-eject-macos") {
-			cfg.AutoEjectMacOS = args.AutoEjectMacOS
+
+		// Parse CLI args to get the flag value
+		var parsedArgs cliArgs
+		p, err := arg.NewParser(arg.Config{}, &parsedArgs)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_ = p.Parse(osArgs[1:])
+
+		if wasFlagProvided(osArgs, "--auto-eject-macos") {
+			cfg.AutoEjectMacOS = parsedArgs.AutoEjectMacOS
 		}
 
 		if cfg.AutoEjectMacOS {
@@ -679,11 +660,6 @@ func TestValidateConfigInvalidSidecarAction(t *testing.T) {
 }
 
 func TestRunBooleanOverrideFalse(t *testing.T) {
-	savedArgs := args
-	defer func() { args = savedArgs }()
-	oldArgs := os.Args
-	defer func() { os.Args = oldArgs }()
-
 	tmpDir, err := os.MkdirTemp("", "bool-override-test")
 	if err != nil {
 		t.Fatal(err)
@@ -703,16 +679,24 @@ func TestRunBooleanOverrideFalse(t *testing.T) {
 	configFile.Close()
 
 	// CLI overrides verbose to false
-	os.Args = []string{"cmd", "--config", configFile.Name(), "--verbose=false"}
+	osArgs := []string{"cmd", "--config", configFile.Name(), "--verbose=false"}
 
 	cfg := config{}
 	if err := setDefaults(&cfg); err != nil {
 		t.Fatal(err)
 	}
-	arg.MustParse(&args)
 
-	if args.ConfigFile != "" {
-		cfg.ConfigFile = args.ConfigFile
+	var parsedArgs cliArgs
+	p, err := arg.NewParser(arg.Config{}, &parsedArgs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := p.Parse(osArgs[1:]); err != nil {
+		t.Fatal(err)
+	}
+
+	if parsedArgs.ConfigFile != "" {
+		cfg.ConfigFile = parsedArgs.ConfigFile
 	}
 	if err := parseConfigFile(&cfg); err != nil {
 		t.Fatal(err)
@@ -724,8 +708,8 @@ func TestRunBooleanOverrideFalse(t *testing.T) {
 	}
 
 	// Apply CLI override
-	if wasFlagProvided("-v") || wasFlagProvided("--verbose") {
-		cfg.Verbose = args.Verbose
+	if wasFlagProvided(osArgs, "-v") || wasFlagProvided(osArgs, "--verbose") {
+		cfg.Verbose = parsedArgs.Verbose
 	}
 
 	if cfg.Verbose {
@@ -734,11 +718,6 @@ func TestRunBooleanOverrideFalse(t *testing.T) {
 }
 
 func TestRunCustomConfigPath(t *testing.T) {
-	savedArgs := args
-	defer func() { args = savedArgs }()
-	oldArgs := os.Args
-	defer func() { os.Args = oldArgs }()
-
 	tmpDir, err := os.MkdirTemp("", "custom-config-test")
 	if err != nil {
 		t.Fatal(err)
@@ -757,19 +736,12 @@ func TestRunCustomConfigPath(t *testing.T) {
 	}
 	configFile.Close()
 
-	os.Args = []string{"cmd", "--config", configFile.Name()}
-
-	if err := run(); err != nil {
+	if err := run([]string{"cmd", "--config", configFile.Name()}); err != nil {
 		t.Fatalf("run() with custom config path failed: %v", err)
 	}
 }
 
 func TestRunWorkersOverride(t *testing.T) {
-	savedArgs := args
-	defer func() { args = savedArgs }()
-	oldArgs := os.Args
-	defer func() { os.Args = oldArgs }()
-
 	tmpDir, err := os.MkdirTemp("", "workers-override-test")
 	if err != nil {
 		t.Fatal(err)
@@ -789,16 +761,24 @@ func TestRunWorkersOverride(t *testing.T) {
 	configFile.Close()
 
 	// CLI overrides workers to 8
-	os.Args = []string{"cmd", "--config", configFile.Name(), "--workers", "8"}
+	osArgs := []string{"cmd", "--config", configFile.Name(), "--workers", "8"}
 
 	cfg := config{}
 	if err := setDefaults(&cfg); err != nil {
 		t.Fatal(err)
 	}
-	arg.MustParse(&args)
 
-	if args.ConfigFile != "" {
-		cfg.ConfigFile = args.ConfigFile
+	var parsedArgs cliArgs
+	p, err := arg.NewParser(arg.Config{}, &parsedArgs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := p.Parse(osArgs[1:]); err != nil {
+		t.Fatal(err)
+	}
+
+	if parsedArgs.ConfigFile != "" {
+		cfg.ConfigFile = parsedArgs.ConfigFile
 	}
 	if err := parseConfigFile(&cfg); err != nil {
 		t.Fatal(err)
@@ -810,8 +790,8 @@ func TestRunWorkersOverride(t *testing.T) {
 	}
 
 	// Apply CLI override
-	if wasFlagProvided("--workers") {
-		cfg.Workers = args.Workers
+	if wasFlagProvided(osArgs, "--workers") {
+		cfg.Workers = parsedArgs.Workers
 	}
 
 	if cfg.Workers != 8 {

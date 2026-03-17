@@ -22,13 +22,8 @@ type VolumeInfo struct {
 	VolumeUUID                     string `plist:"VolumeUUID"`
 }
 
-// diskutilInfoFunc is a package-level variable to allow test injection
-var diskutilInfoFunc = diskutilInfoReal
-
-// diskutilInfo calls the injectable function for getting volume info
-func diskutilInfo(mountPoint string) (*VolumeInfo, error) {
-	return diskutilInfoFunc(mountPoint)
-}
+// diskutilInfoFn is the function type for getting volume info
+type diskutilInfoFn func(mountPoint string) (*VolumeInfo, error)
 
 // diskutilInfoReal runs diskutil info -plist and parses the output
 func diskutilInfoReal(mountPoint string) (*VolumeInfo, error) {
@@ -57,9 +52,9 @@ func parseDiskutilPlist(data []byte) (*VolumeInfo, error) {
 
 // filterVolume determines if a mounted volume should be auto-imported.
 // It applies the multi-stage filter pipeline: diskutil properties, DCIM folder, volume allowlist.
-func filterVolume(mountPoint string, cfg config) (bool, error) {
+func filterVolume(mountPoint string, cfg config, diskutilFn diskutilInfoFn) (bool, error) {
 	// Stage 1: diskutil properties
-	info, err := diskutilInfo(mountPoint)
+	info, err := diskutilFn(mountPoint)
 	if err != nil {
 		return false, err
 	}
@@ -71,7 +66,7 @@ func filterVolume(mountPoint string, cfg config) (bool, error) {
 	}
 
 	// Stage 2: DCIM folder check
-	if cfg.WatchRequireDCIM {
+	if cfg.Watch.RequireDCIM {
 		dcimPath := filepath.Join(mountPoint, "DCIM")
 		fi, err := os.Stat(dcimPath)
 		if err != nil || !fi.IsDir() {
@@ -80,10 +75,10 @@ func filterVolume(mountPoint string, cfg config) (bool, error) {
 	}
 
 	// Stage 3: Volume allowlist
-	if len(cfg.WatchVolumes) > 0 {
+	if len(cfg.Watch.Volumes) > 0 {
 		volumeName := info.VolumeName
 		matched := false
-		for _, pattern := range cfg.WatchVolumes {
+		for _, pattern := range cfg.Watch.Volumes {
 			if ok, _ := filepath.Match(pattern, volumeName); ok {
 				matched = true
 				break

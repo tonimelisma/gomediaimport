@@ -611,6 +611,60 @@ func TestCopyFilesAccumulatesCopyError(t *testing.T) {
 	}
 }
 
+func TestDeleteOriginalFilesReturnsError(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "delete-err-test")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	// Create a file inside a read-only directory so os.Remove fails
+	readOnlyDir := filepath.Join(tmpDir, "readonly")
+	if err := os.MkdirAll(readOnlyDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	filePath := filepath.Join(readOnlyDir, "locked.jpg")
+	if err := os.WriteFile(filePath, []byte("data"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	// Make the directory read-only so Remove fails
+	if err := os.Chmod(readOnlyDir, 0555); err != nil {
+		t.Fatal(err)
+	}
+	defer os.Chmod(readOnlyDir, 0755) // restore for cleanup
+
+	files := []FileInfo{
+		{SourceName: "locked.jpg", SourceDir: readOnlyDir, Status: StatusCopied, Size: 4},
+	}
+
+	cfg := config{DeleteOriginals: true}
+	err = deleteOriginalFiles(files, cfg)
+	if err == nil {
+		t.Error("deleteOriginalFiles should return error when deletion fails")
+	}
+}
+
+func TestHumanReadableDurationEdgeCases(t *testing.T) {
+	tests := []struct {
+		duration time.Duration
+		expected string
+	}{
+		{0, "0s"},
+		{-5 * time.Second, "0s"},
+		{-1 * time.Hour, "0s"},
+		{500 * time.Millisecond, "0s"},  // less than 1 second
+		{5 * time.Second, "5s"},
+		{90 * time.Second, "1m30s"},
+	}
+
+	for _, tt := range tests {
+		result := humanReadableDuration(tt.duration)
+		if result != tt.expected {
+			t.Errorf("humanReadableDuration(%v) = %q, want %q", tt.duration, result, tt.expected)
+		}
+	}
+}
+
 func TestCopyFilesConcurrent(t *testing.T) {
 	tmpDir, err := os.MkdirTemp("", "concurrent-copy-test")
 	if err != nil {
