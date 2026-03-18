@@ -3,7 +3,7 @@ module github.com/tonimelisma/gomediaimport
 go 1.25.0
 
 require (
-	github.com/abema/go-mp4 v1.4.1
+	github.com/abema/go-mp4 v1.5.0
 	github.com/alexflint/go-arg v1.6.1
 	github.com/bep/imagemeta v0.17.0
 	github.com/cespare/xxhash/v2 v2.3.0
