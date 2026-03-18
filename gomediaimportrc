@@ -59,6 +59,3 @@ watch_require_dcim: true
 # watch_volumes:
 #   - "EOS_DIGITAL"
 #   - "NIKON*"
-
-# Send macOS notifications on import start/complete/error (default: true)
-watch_notifications: true

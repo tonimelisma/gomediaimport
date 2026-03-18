@@ -18,9 +18,6 @@ func TestWatchConfigDefaults(t *testing.T) {
 	if !cfg.Watch.RequireDCIM {
 		t.Error("expected Watch.RequireDCIM default to be true")
 	}
-	if !cfg.Watch.Notifications {
-		t.Error("expected Watch.Notifications default to be true")
-	}
 	if len(cfg.Watch.Volumes) != 0 {
 		t.Errorf("expected Watch.Volumes default to be empty, got %v", cfg.Watch.Volumes)
 	}
@@ -32,7 +29,6 @@ watch_require_dcim: false
 watch_volumes:
   - "EOS_*"
   - "NIKON*"
-watch_notifications: false
 `
 	tmpFile, err := os.CreateTemp("", "watch-config-*.yaml")
 	if err != nil {
@@ -55,9 +51,6 @@ watch_notifications: false
 
 	if cfg.Watch.RequireDCIM {
 		t.Error("expected Watch.RequireDCIM=false from YAML")
-	}
-	if cfg.Watch.Notifications {
-		t.Error("expected Watch.Notifications=false from YAML")
 	}
 	if len(cfg.Watch.Volumes) != 2 {
 		t.Fatalf("expected 2 watch volumes, got %d", len(cfg.Watch.Volumes))
@@ -175,9 +168,8 @@ func TestStatusShowsConfig(t *testing.T) {
 	cfg := config{
 		DestDir: "/Users/test/Pictures",
 		Watch: WatchConfig{
-			RequireDCIM:   true,
-			Volumes:       []string{"EOS_*"},
-			Notifications: true,
+			RequireDCIM: true,
+			Volumes:     []string{"EOS_*"},
 		},
 	}
 
@@ -203,7 +195,7 @@ func TestWatchStatusBinaryMissingWarning(t *testing.T) {
 
 	cfg := config{
 		DestDir: "/tmp/dest",
-		Watch:   WatchConfig{RequireDCIM: true, Notifications: true},
+		Watch:   WatchConfig{RequireDCIM: true},
 	}
 
 	// Capture stdout
@@ -321,8 +313,7 @@ func TestWatchImportEndToEnd(t *testing.T) {
 		SidecarDefault: SidecarDelete,
 		Sidecars:       make(map[string]SidecarAction),
 		Watch: WatchConfig{
-			RequireDCIM:   true,
-			Notifications: false,
+			RequireDCIM: true,
 		},
 	}
 
@@ -391,7 +382,6 @@ func TestRunWatchImportScansVolumes(t *testing.T) {
 		Sidecars:       make(map[string]SidecarAction),
 		Watch: WatchConfig{
 			RequireDCIM:   true,
-			Notifications: false,
 		},
 	}
 
@@ -441,7 +431,6 @@ func TestRunWatchImportCollectsAllErrors(t *testing.T) {
 		Sidecars:       make(map[string]SidecarAction),
 		Watch: WatchConfig{
 			RequireDCIM:   true,
-			Notifications: false,
 		},
 	}
 
@@ -481,7 +470,6 @@ func TestRunWatchImportVerboseLogging(t *testing.T) {
 		Sidecars:       make(map[string]SidecarAction),
 		Watch: WatchConfig{
 			RequireDCIM:   true,
-			Notifications: false,
 		},
 	}
 

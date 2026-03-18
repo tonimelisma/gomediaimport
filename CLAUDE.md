@@ -71,8 +71,6 @@ gomediaimport is a CLI tool that imports and organizes media files (photos/video
 - **media_types.go** — `MediaCategory` (ProcessedPicture, RawPicture, Video, RawVideo, Sidecar) and `FileType` constants. Extension-to-type mapping in `fileTypes` slice. `SidecarAction` type with per-extension defaults and overrides.
 - **watch.go** — Watch mode orchestrator. `runWatch(cfg, *watchArgs)` resolves `plistPath()` and passes it to install/uninstall/status functions (injectable for testing). `installLaunchAgent(cfg, pPath)` generates plist via `howett.net/plist`, writes to `~/Library/LaunchAgents/`, bootstraps with `launchctl`. `runWatchImport(cfg, volumesDir, diskutilFn)` scans configurable volumes dir, filters via `filterVolume()`, calls `importMedia()` for each match, collects all errors via `errors.Join()`. Verbose logging at each filter stage. `watchStatus(cfg, pPath)` warns if binary path in plist doesn't exist.
 - **diskutil.go** — `VolumeInfo` struct, `diskutilInfoFn` type, `diskutilInfoReal()` implementation, `filterVolume(mountPoint, cfg, diskutilFn)` multi-stage pipeline (ejectable check, DCIM folder, glob allowlist) with verbose logging at each rejection stage — takes function parameter for testability. `parseDiskutilPlist()` for parsing raw plist data.
-- **notify.go** — `sendNotification()` using `osascript` (fire-and-forget, with goroutine to reap zombie processes).
-
 ### Program Flow
 
 1. `run()` → parse config (defaults → YAML → CLI overrides via `wasFlagProvided`). If `watch` subcommand, dispatch to `runWatch()`.
@@ -89,8 +87,7 @@ gomediaimport is a CLI tool that imports and organizes media files (photos/video
 2. Load config from `~/.gomediaimportrc`
 3. Scan `/Volumes`, filter each through `filterVolume()` (diskutil → DCIM → allowlist)
 4. For each passing volume, call `importMedia()` with source set to mount point
-5. Send macOS notifications on detection/completion/error (if enabled)
-6. Exit 0 if all succeed, exit 1 if any failed
+5. Exit 0 if all succeed, exit 1 if any failed
 
 ### Design Decisions
 

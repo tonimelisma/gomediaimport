@@ -191,8 +191,6 @@ func watchStatus(cfg config, pPath string) error {
 	} else {
 		fmt.Printf("  Volume allowlist: (all volumes)\n")
 	}
-	fmt.Printf("  Notifications: %v\n", cfg.Watch.Notifications)
-
 	return nil
 }
 
@@ -202,8 +200,8 @@ func runWatchImport(cfg config, volumesDir string, diskutilFn diskutilInfoFn) er
 	}
 
 	if cfg.Verbose {
-		fmt.Printf("  Config: dest=%s require_dcim=%v volumes=%v notifications=%v\n",
-			cfg.DestDir, cfg.Watch.RequireDCIM, cfg.Watch.Volumes, cfg.Watch.Notifications)
+		fmt.Printf("  Config: dest=%s require_dcim=%v volumes=%v\n",
+			cfg.DestDir, cfg.Watch.RequireDCIM, cfg.Watch.Volumes)
 	}
 
 	entries, err := os.ReadDir(volumesDir)
@@ -241,9 +239,6 @@ func runWatchImport(cfg config, volumesDir string, diskutilFn diskutilInfoFn) er
 		if !cfg.Quiet {
 			fmt.Printf("Importing from volume: %s\n", entry.Name())
 		}
-		if cfg.Watch.Notifications {
-			sendNotification("Go Media Import", fmt.Sprintf("Camera card detected: %s — importing to %s...", entry.Name(), cfg.DestDir))
-		}
 
 		importCfg := cfg
 		importCfg.SourceDir = mountPoint
@@ -251,9 +246,6 @@ func runWatchImport(cfg config, volumesDir string, diskutilFn diskutilInfoFn) er
 		if err := validateConfig(&importCfg); err != nil {
 			errMsg := fmt.Sprintf("invalid config for volume %s: %v", entry.Name(), err)
 			fmt.Fprintf(os.Stderr, "Error: %s\n", errMsg)
-			if cfg.Watch.Notifications {
-				sendNotification("Go Media Import", fmt.Sprintf("Import failed for %s: %s", entry.Name(), err))
-			}
 			errs = append(errs, fmt.Errorf("%s", errMsg))
 			continue
 		}
@@ -261,17 +253,11 @@ func runWatchImport(cfg config, volumesDir string, diskutilFn diskutilInfoFn) er
 		if err := importMedia(importCfg); err != nil {
 			errMsg := fmt.Sprintf("import failed for %s: %v", entry.Name(), err)
 			fmt.Fprintf(os.Stderr, "Error: %s\n", errMsg)
-			if cfg.Watch.Notifications {
-				sendNotification("Go Media Import", fmt.Sprintf("Import failed for %s: %s", entry.Name(), err))
-			}
 			errs = append(errs, fmt.Errorf("%s", errMsg))
 			continue
 		}
 
 		importCount++
-		if cfg.Watch.Notifications {
-			sendNotification("Go Media Import", fmt.Sprintf("Import complete from %s", entry.Name()))
-		}
 	}
 
 	if importCount == 0 && len(errs) == 0 && !cfg.Quiet {

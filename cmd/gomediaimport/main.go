@@ -48,9 +48,8 @@ func (cliArgs) Version() string {
 
 // WatchConfig holds watch mode configuration
 type WatchConfig struct {
-	RequireDCIM   bool     `yaml:"watch_require_dcim"`
-	Volumes       []string `yaml:"watch_volumes"`
-	Notifications bool     `yaml:"watch_notifications"`
+	RequireDCIM bool     `yaml:"watch_require_dcim"`
+	Volumes     []string `yaml:"watch_volumes"`
 }
 
 // config holds the application configuration
@@ -94,7 +93,6 @@ func setDefaults(cfg *config) error {
 	cfg.Sidecars = make(map[string]SidecarAction)
 	cfg.Workers = 0
 	cfg.Watch.RequireDCIM = true
-	cfg.Watch.Notifications = true
 	return nil
 }
 

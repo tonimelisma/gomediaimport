@@ -116,8 +116,6 @@ The following optional keys control watch mode behavior (all top-level in the YA
 |---|---|---|---|
 | `watch_require_dcim` | bool | `true` | Only import from volumes with a `DCIM/` directory |
 | `watch_volumes` | list of strings | `[]` (all) | Volume name allowlist, supports glob patterns (e.g. `"NIKON*"`, `"EOS_*"`). Empty = all passing volumes. |
-| `watch_notifications` | bool | `true` | Send macOS notifications on import start/complete/error |
-
 When the watch LaunchAgent triggers, it scans all volumes in `/Volumes` and filters them through a pipeline:
 1. **diskutil properties**: rejects non-ejectable or internal non-removable volumes
 2. **DCIM folder**: rejects volumes without a `DCIM/` directory (if `watch_require_dcim` is true)

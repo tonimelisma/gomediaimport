@@ -1,5 +1,10 @@
 # Changelog
 
+## [v1.5.1] - 2026-03-17
+
+### Removed
+- **macOS notifications**: removed `sendNotification()` and `watch_notifications` config option. The `osascript`-based notification feature silently fails on macOS Sequoia due to per-app notification permission changes, and all available alternatives have significant drawbacks.
+
 ## [v1.5.0] - 2026-03-17
 
 ### Features
