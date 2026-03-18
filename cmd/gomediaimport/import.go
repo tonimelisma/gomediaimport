@@ -3,7 +3,6 @@ package main
 import (
 	"errors"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -52,18 +51,22 @@ func effectiveWorkers(workers int) int {
 	return workers
 }
 
+func printConfig(cfg config) {
+	fmt.Println("Source directory:", cfg.SourceDir)
+	fmt.Println("Destination directory:", cfg.DestDir)
+	fmt.Println("Organize by date:", cfg.OrganizeByDate)
+	fmt.Println("Rename by date and time:", cfg.RenameByDateTime)
+	fmt.Println("Checksum duplicates:", cfg.ChecksumDuplicates)
+	fmt.Println("Skip thumbnails:", cfg.SkipThumbnails)
+	fmt.Println("Delete originals:", cfg.DeleteOriginals)
+	fmt.Println("Sidecar default:", cfg.SidecarDefault)
+	fmt.Println("Copy workers:", effectiveWorkers(cfg.Workers))
+}
+
 // importMedia handles the main functionality of the program
 func importMedia(cfg config) error {
 	if cfg.Verbose {
-		fmt.Println("Source directory:", cfg.SourceDir)
-		fmt.Println("Destination directory:", cfg.DestDir)
-		fmt.Println("Organize by date:", cfg.OrganizeByDate)
-		fmt.Println("Rename by date and time:", cfg.RenameByDateTime)
-		fmt.Println("Checksum duplicates:", cfg.ChecksumDuplicates)
-		fmt.Println("Skip thumbnails:", cfg.SkipThumbnails)
-		fmt.Println("Delete originals:", cfg.DeleteOriginals)
-		fmt.Println("Sidecar default:", cfg.SidecarDefault)
-		fmt.Println("Copy workers:", effectiveWorkers(cfg.Workers))
+		printConfig(cfg)
 	}
 
 	files, err := enumerateFiles(cfg.SourceDir, cfg)
@@ -92,7 +95,7 @@ func importMedia(cfg config) error {
 	}
 
 	if cfg.AutoEjectMacOS && runtime.GOOS == "darwin" {
-		ejectAfterImport(cfg.SourceDir)
+		_ = ejectAfterImport(cfg.SourceDir, cfg.Quiet)
 	}
 
 	return nil
@@ -217,14 +220,20 @@ func printSummary(files []FileInfo) {
 	}
 }
 
-func ejectAfterImport(sourceDir string) {
-	fmt.Printf("INFO: Import operations completed successfully. Attempting auto-eject for %s.\n", sourceDir)
-	ejectErr := ejectDriveMacOS(sourceDir)
-	if ejectErr != nil {
-		fmt.Printf("WARNING: Failed to eject source drive %s after successful import: %v\n", sourceDir, ejectErr)
-	} else {
-		fmt.Printf("INFO: Successfully ejected source drive %s after successful import.\n", sourceDir)
+func ejectAfterImport(sourceDir string, quiet bool) error {
+	if !quiet {
+		fmt.Printf("Attempting auto-eject for %s...\n", sourceDir)
 	}
+	if err := ejectDriveMacOS(sourceDir); err != nil {
+		if !quiet {
+			fmt.Fprintf(os.Stderr, "Warning: eject failed for %s: %v\n", sourceDir, err)
+		}
+		return err
+	}
+	if !quiet {
+		fmt.Printf("Ejected %s successfully.\n", sourceDir)
+	}
+	return nil
 }
 
 type progressTracker struct {
@@ -367,18 +376,17 @@ func copyFiles(files []FileInfo, cfg config) error {
 
 					if err := copyFile(srcPath, destPath); err != nil {
 						_ = os.Remove(destPath)
+						errMsg := fmt.Errorf("failed to copy %s: %w", srcPath, err)
 						mu.Lock()
 						files[i].Status = StatusFailed
-						copyErrors = append(copyErrors, fmt.Errorf("failed to copy %s: %w", srcPath, err))
-						fmt.Fprintf(os.Stderr, "Error: failed to copy %s: %v\n", srcPath, err)
+						copyErrors = append(copyErrors, errMsg)
 						mu.Unlock()
+						fmt.Fprintf(os.Stderr, "Error: %v\n", errMsg)
 						continue
 					}
 
 					if err := setFileTimes(destPath, files[i].CreationDateTime); err != nil {
-						mu.Lock()
 						fmt.Fprintf(os.Stderr, "Warning: Failed to set file times for %s: %v\n", destPath, err)
-						mu.Unlock()
 					}
 
 					mu.Lock()
@@ -399,42 +407,6 @@ func copyFiles(files []FileInfo, cfg config) error {
 	}
 
 	return nil
-}
-
-func copyFile(src, dst string) error {
-	sourceFile, err := os.Open(src)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = sourceFile.Close() }()
-
-	sourceInfo, err := sourceFile.Stat()
-	if err != nil {
-		return err
-	}
-
-	destFile, err := os.Create(dst)
-	if err != nil {
-		return err
-	}
-
-	written, err := io.Copy(destFile, sourceFile)
-	if err != nil {
-		_ = destFile.Close()
-		return err
-	}
-
-	if written != sourceInfo.Size() {
-		_ = destFile.Close()
-		return fmt.Errorf("incomplete copy: wrote %d of %d bytes", written, sourceInfo.Size())
-	}
-
-	if err := destFile.Sync(); err != nil {
-		_ = destFile.Close()
-		return err
-	}
-
-	return destFile.Close()
 }
 
 func deleteOriginalFiles(files []FileInfo, cfg config) error {

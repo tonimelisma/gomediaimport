@@ -30,7 +30,7 @@ func enumerateFiles(sourceDir string, cfg config) ([]FileInfo, error) {
 	err = filepath.WalkDir(sourceDir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			if os.IsPermission(err) {
-				fmt.Printf("Warning: Permission denied accessing %s, skipping...\n", path)
+				fmt.Fprintf(os.Stderr, "Warning: Permission denied accessing %s, skipping\n", path)
 				if d != nil && d.IsDir() {
 					return filepath.SkipDir
 				}
@@ -303,18 +303,48 @@ func setFileTimes(path string, modTime time.Time) error {
 	return nil
 }
 
+func copyFile(src, dst string) error {
+	sourceFile, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = sourceFile.Close() }()
+
+	sourceInfo, err := sourceFile.Stat()
+	if err != nil {
+		return err
+	}
+
+	destFile, err := os.Create(dst)
+	if err != nil {
+		return err
+	}
+
+	written, err := io.Copy(destFile, sourceFile)
+	if err != nil {
+		_ = destFile.Close()
+		return err
+	}
+
+	if written != sourceInfo.Size() {
+		_ = destFile.Close()
+		return fmt.Errorf("incomplete copy: wrote %d of %d bytes", written, sourceInfo.Size())
+	}
+
+	if err := destFile.Sync(); err != nil {
+		_ = destFile.Close()
+		return err
+	}
+
+	return destFile.Close()
+}
+
 // ejectDriveMacOS attempts to eject the specified drive on macOS.
-// It prints messages to stdout regarding its progress.
 func ejectDriveMacOS(sourceDir string) error {
-	fmt.Printf("Attempting to eject drive: %s\n", sourceDir)
-
 	cmd := exec.Command("diskutil", "eject", sourceDir)
-	output, err := cmd.CombinedOutput() // Using CombinedOutput to capture stderr as well
-
+	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("failed to eject drive %s: %v. Output: %s", sourceDir, err, string(output))
 	}
-
-	fmt.Printf("Successfully ejected drive: %s\nOutput: %s\n", sourceDir, string(output))
 	return nil
 }

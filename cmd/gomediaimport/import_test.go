@@ -728,3 +728,264 @@ func TestCopyFilesConcurrent(t *testing.T) {
 		}
 	}
 }
+
+func TestPlanDestinations(t *testing.T) {
+	destDir := t.TempDir()
+	now := time.Date(2024, 6, 15, 10, 30, 0, 0, time.Local)
+
+	t.Run("OrganizeByDate", func(t *testing.T) {
+		files := []FileInfo{
+			{
+				SourceName:       "IMG_001.JPG",
+				SourceDir:        "/src",
+				CreationDateTime: now,
+				Size:             100,
+				MediaCategory:    ProcessedPicture,
+				FileType:         JPEG,
+				ParentIndex:      -1,
+			},
+		}
+		cfg := config{
+			DestDir:        destDir,
+			OrganizeByDate: true,
+			SidecarDefault: SidecarDelete,
+			Sidecars:       make(map[string]SidecarAction),
+		}
+		planDestinations(files, cfg)
+
+		expected := filepath.Join(destDir, "2024/06")
+		if files[0].DestDir != expected {
+			t.Errorf("expected DestDir=%s, got %s", expected, files[0].DestDir)
+		}
+		if files[0].DestName != "IMG_001.JPG" {
+			t.Errorf("expected DestName=IMG_001.JPG, got %s", files[0].DestName)
+		}
+	})
+
+	t.Run("RenameByDateTime", func(t *testing.T) {
+		files := []FileInfo{
+			{
+				SourceName:       "IMG_001.JPG",
+				SourceDir:        "/src",
+				CreationDateTime: now,
+				Size:             100,
+				MediaCategory:    ProcessedPicture,
+				FileType:         JPEG,
+				ParentIndex:      -1,
+			},
+		}
+		cfg := config{
+			DestDir:          destDir,
+			RenameByDateTime: true,
+			SidecarDefault:   SidecarDelete,
+			Sidecars:         make(map[string]SidecarAction),
+		}
+		planDestinations(files, cfg)
+
+		if files[0].DestName != "20240615_103000.jpg" {
+			t.Errorf("expected DestName=20240615_103000.jpg, got %s", files[0].DestName)
+		}
+	})
+
+	t.Run("PlainCopy", func(t *testing.T) {
+		files := []FileInfo{
+			{
+				SourceName:       "IMG_001.JPG",
+				SourceDir:        "/src",
+				CreationDateTime: now,
+				Size:             100,
+				MediaCategory:    ProcessedPicture,
+				FileType:         JPEG,
+				ParentIndex:      -1,
+			},
+		}
+		cfg := config{
+			DestDir:        destDir,
+			SidecarDefault: SidecarDelete,
+			Sidecars:       make(map[string]SidecarAction),
+		}
+		planDestinations(files, cfg)
+
+		if files[0].DestDir != destDir {
+			t.Errorf("expected DestDir=%s, got %s", destDir, files[0].DestDir)
+		}
+		if files[0].DestName != "IMG_001.JPG" {
+			t.Errorf("expected DestName=IMG_001.JPG, got %s", files[0].DestName)
+		}
+	})
+
+	t.Run("SidecarFollowsParent", func(t *testing.T) {
+		files := []FileInfo{
+			{
+				SourceName:       "IMG_001.JPG",
+				SourceDir:        "/src",
+				CreationDateTime: now,
+				Size:             100,
+				MediaCategory:    ProcessedPicture,
+				FileType:         JPEG,
+				ParentIndex:      -1,
+			},
+			{
+				SourceName:       "IMG_001.xmp",
+				SourceDir:        "/src",
+				CreationDateTime: now,
+				Size:             50,
+				MediaCategory:    Sidecar,
+				ParentIndex:      -1,
+			},
+		}
+		cfg := config{
+			DestDir:          destDir,
+			RenameByDateTime: true,
+			SidecarDefault:   SidecarCopy,
+			Sidecars:         make(map[string]SidecarAction),
+		}
+		planDestinations(files, cfg)
+
+		if files[1].DestName != "20240615_103000.xmp" {
+			t.Errorf("expected sidecar DestName=20240615_103000.xmp, got %s", files[1].DestName)
+		}
+		if files[1].DestDir != destDir {
+			t.Errorf("expected sidecar DestDir=%s, got %s", destDir, files[1].DestDir)
+		}
+		if files[1].ParentIndex != 0 {
+			t.Errorf("expected sidecar ParentIndex=0, got %d", files[1].ParentIndex)
+		}
+	})
+
+	t.Run("OrphanedSidecar", func(t *testing.T) {
+		files := []FileInfo{
+			{
+				SourceName:       "IMG_999.xmp",
+				SourceDir:        "/src",
+				CreationDateTime: now,
+				Size:             50,
+				MediaCategory:    Sidecar,
+				ParentIndex:      -1,
+			},
+		}
+		cfg := config{
+			DestDir:          destDir,
+			OrganizeByDate:   true,
+			RenameByDateTime: true,
+			SidecarDefault:   SidecarCopy,
+			Sidecars:         make(map[string]SidecarAction),
+		}
+		planDestinations(files, cfg)
+
+		expected := filepath.Join(destDir, "2024/06")
+		if files[0].DestDir != expected {
+			t.Errorf("expected orphaned sidecar DestDir=%s, got %s", expected, files[0].DestDir)
+		}
+		if files[0].DestName != "20240615_103000.xmp" {
+			t.Errorf("expected orphaned sidecar DestName=20240615_103000.xmp, got %s", files[0].DestName)
+		}
+	})
+
+	t.Run("SidecarDelete", func(t *testing.T) {
+		files := []FileInfo{
+			{
+				SourceName:       "VID_001.mp4",
+				SourceDir:        "/src",
+				CreationDateTime: now,
+				Size:             1000,
+				MediaCategory:    Video,
+				FileType:         MP4,
+				ParentIndex:      -1,
+			},
+			{
+				SourceName:       "VID_001.thm",
+				SourceDir:        "/src",
+				CreationDateTime: now,
+				Size:             50,
+				MediaCategory:    Sidecar,
+				ParentIndex:      -1,
+			},
+		}
+		cfg := config{
+			DestDir:        destDir,
+			SidecarDefault: SidecarDelete,
+			Sidecars:       make(map[string]SidecarAction),
+		}
+		planDestinations(files, cfg)
+
+		if files[1].Status != StatusSidecarDeleted {
+			t.Errorf("expected THM sidecar Status=StatusSidecarDeleted, got %v", files[1].Status)
+		}
+	})
+}
+
+func TestProgressTracker(t *testing.T) {
+	t.Run("NonTTYOutput", func(t *testing.T) {
+		// Capture stdout via pipe (non-TTY)
+		oldStdout := os.Stdout
+		r, w, err := os.Pipe()
+		if err != nil {
+			t.Fatal(err)
+		}
+		os.Stdout = w
+
+		tracker := newProgressTracker(1000, true)
+		tracker.recordCopy("/src/a.jpg", "/dst/a.jpg", 500)
+		tracker.recordCopy("/src/b.jpg", "/dst/b.jpg", 500)
+		tracker.finish()
+
+		w.Close()
+		os.Stdout = oldStdout
+
+		output, _ := io.ReadAll(r)
+		outputStr := string(output)
+
+		// Non-TTY: should not contain ANSI escape codes
+		if strings.Contains(outputStr, "\033") {
+			t.Errorf("non-TTY output should not contain ANSI codes, got:\n%s", outputStr)
+		}
+
+		// Should contain percentage
+		if !strings.Contains(outputStr, "100%") {
+			t.Errorf("expected 100%% progress, got:\n%s", outputStr)
+		}
+	})
+
+	t.Run("VerboseFalseProducesNoOutput", func(t *testing.T) {
+		oldStdout := os.Stdout
+		r, w, err := os.Pipe()
+		if err != nil {
+			t.Fatal(err)
+		}
+		os.Stdout = w
+
+		tracker := newProgressTracker(1000, false)
+		tracker.recordCopy("/src/a.jpg", "/dst/a.jpg", 500)
+		tracker.finish()
+
+		w.Close()
+		os.Stdout = oldStdout
+
+		output, _ := io.ReadAll(r)
+		if len(output) > 0 {
+			t.Errorf("expected no output with verbose=false, got:\n%s", string(output))
+		}
+	})
+
+	t.Run("FinishNonTTYNoOutput", func(t *testing.T) {
+		oldStdout := os.Stdout
+		r, w, err := os.Pipe()
+		if err != nil {
+			t.Fatal(err)
+		}
+		os.Stdout = w
+
+		// Non-TTY tracker with no recordCopy calls
+		tracker := newProgressTracker(1000, true)
+		tracker.finish()
+
+		w.Close()
+		os.Stdout = oldStdout
+
+		output, _ := io.ReadAll(r)
+		if len(output) > 0 {
+			t.Errorf("expected no output from finish() in non-TTY mode, got:\n%s", string(output))
+		}
+	})
+}

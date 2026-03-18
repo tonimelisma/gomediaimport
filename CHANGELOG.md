@@ -1,5 +1,33 @@
 # Changelog
 
+## [v1.5.0] - 2026-03-17
+
+### Features
+- **`--quiet` / `-q` flag**: suppresses all non-error stdout output. Stderr warnings/errors always print. Interactive commands (`watch --install/--uninstall/--status`) are NOT suppressed. Forces `Verbose=false`.
+- **Watch mode verbose logging**: when `verbose: true`, `filterVolume()` logs each filter stage (ejectable, DCIM, allowlist) with accept/reject reason. `runWatchImport()` logs config summary and volume scan progress. Output goes to `~/Library/Logs/gomediaimport.out.log` when running via LaunchAgent.
+
+### Bug Fixes
+- **`runWatchImport()` now collects all errors**: previously only kept the first error via `firstErr`. Now accumulates all errors and returns them via `errors.Join()`.
+- **`ejectDriveMacOS()` no longer prints to stdout**: removed unconditional `fmt.Printf` calls. All messaging moved to `ejectAfterImport()`, gated by `quiet` flag.
+- **`ejectAfterImport()` now returns error**: previously returned void, swallowing eject failures.
+- **Permission-denied warning uses stderr**: `enumerateFiles` WalkDir callback now writes "Permission denied" warning to stderr instead of stdout.
+
+### Improvements
+- **Reduced mutex scope in `copyFiles` worker loop**: stderr writes and `setFileTimes` warnings no longer hold the mutex.
+- **Extracted `printConfig()`**: 10 inline `fmt.Println` calls in `importMedia()` moved to a named function.
+- **Moved `copyFile()` to `file_operations.go`**: pure function relocated to where other file operations live.
+- **`plistPath` injectable for testing**: `installLaunchAgent`, `uninstallLaunchAgent`, and `watchStatus` now take a `pPath` parameter. All three are testable with temp paths.
+
+### Testing
+- Added `TestRunWatchImportCollectsAllErrors` — verifies all volume errors are returned, not just the first.
+- Added `TestWatchStatusBinaryMissingWarning` — verifies "WARNING: binary not found" output when plist references a missing binary.
+- Removed `t.Skip` from `TestInstallRefusesIfAlreadyInstalled` and `TestUninstallWhenNotInstalled` — now deterministic with temp paths.
+- Added `TestRunQuietSuppressesOutput` — verifies `--quiet` produces no stdout.
+- Added `TestFilterVolumeVerboseLogging` — verifies verbose filter rejection output.
+- Added `TestRunWatchImportVerboseLogging` — verifies verbose scan/config logging.
+- Added `TestPlanDestinations` — direct unit tests for organize-by-date, rename-by-datetime, plain copy, sidecar-follows-parent, orphaned sidecar, and sidecar-delete.
+- Added `TestProgressTracker` — tests non-TTY output (no ANSI codes), verbose=false (no output), and finish() in non-TTY mode.
+
 ## [v1.4.0] - 2026-03-17
 
 ### Bug Fixes

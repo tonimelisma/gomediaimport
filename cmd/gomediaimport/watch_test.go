@@ -133,8 +133,10 @@ func TestPlistPathsAbsolute(t *testing.T) {
 }
 
 func TestInstallRequiresDestination(t *testing.T) {
+	tmpDir := t.TempDir()
+	pPath := filepath.Join(tmpDir, "test.plist")
 	cfg := config{DestDir: ""}
-	err := installLaunchAgent(cfg)
+	err := installLaunchAgent(cfg, pPath)
 	if err == nil {
 		t.Error("expected error when destination_directory is not set")
 	}
@@ -144,18 +146,11 @@ func TestInstallRequiresDestination(t *testing.T) {
 }
 
 func TestInstallRefusesIfAlreadyInstalled(t *testing.T) {
-	pPath, err := plistPath()
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	// If plist already exists, install should refuse
-	if _, err := os.Stat(pPath); err != nil {
-		t.Skip("LaunchAgent plist not present on host, skipping")
-	}
-
+	tmpDir := t.TempDir()
+	pPath := filepath.Join(tmpDir, "test.plist")
+	os.WriteFile(pPath, []byte("fake"), 0644)
 	cfg := config{DestDir: "/tmp/dest"}
-	err = installLaunchAgent(cfg)
+	err := installLaunchAgent(cfg, pPath)
 	if err == nil {
 		t.Error("expected error when plist already exists")
 	}
@@ -165,23 +160,18 @@ func TestInstallRefusesIfAlreadyInstalled(t *testing.T) {
 }
 
 func TestUninstallWhenNotInstalled(t *testing.T) {
-	pPath, err := plistPath()
-	if err != nil {
-		t.Fatal(err)
-	}
+	tmpDir := t.TempDir()
+	pPath := filepath.Join(tmpDir, "nonexistent.plist")
 
-	// Only test if plist does NOT exist (to avoid uninstalling a real agent)
-	if _, statErr := os.Stat(pPath); !os.IsNotExist(statErr) {
-		t.Skip("LaunchAgent plist present on host, skipping to avoid uninstalling real agent")
-	}
-
-	err = uninstallLaunchAgent()
+	err := uninstallLaunchAgent(pPath)
 	if err != nil {
 		t.Errorf("uninstall should succeed gracefully when not installed, got: %v", err)
 	}
 }
 
 func TestStatusShowsConfig(t *testing.T) {
+	tmpDir := t.TempDir()
+	pPath := filepath.Join(tmpDir, "nonexistent.plist")
 	cfg := config{
 		DestDir: "/Users/test/Pictures",
 		Watch: WatchConfig{
@@ -192,9 +182,53 @@ func TestStatusShowsConfig(t *testing.T) {
 	}
 
 	// watchStatus prints to stdout — just verify it doesn't error
-	err := watchStatus(cfg)
+	err := watchStatus(cfg, pPath)
 	if err != nil {
 		t.Errorf("watchStatus should not error: %v", err)
+	}
+}
+
+func TestWatchStatusBinaryMissingWarning(t *testing.T) {
+	tmpDir := t.TempDir()
+	pPath := filepath.Join(tmpDir, "test.plist")
+
+	// Create a plist with a non-existent binary
+	data, err := generatePlist("/nonexistent/binary/gomediaimport", "/Users/testuser")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(pPath, data, 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg := config{
+		DestDir: "/tmp/dest",
+		Watch:   WatchConfig{RequireDCIM: true, Notifications: true},
+	}
+
+	// Capture stdout
+	oldStdout := os.Stdout
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	os.Stdout = w
+
+	watchErr := watchStatus(cfg, pPath)
+
+	w.Close()
+	os.Stdout = oldStdout
+
+	if watchErr != nil {
+		t.Fatalf("watchStatus should not error: %v", watchErr)
+	}
+
+	output := make([]byte, 4096)
+	n, _ := r.Read(output)
+	outputStr := string(output[:n])
+
+	if !strings.Contains(outputStr, "WARNING: binary not found") {
+		t.Errorf("expected output to contain 'WARNING: binary not found', got:\n%s", outputStr)
 	}
 }
 
@@ -369,5 +403,112 @@ func TestRunWatchImportScansVolumes(t *testing.T) {
 	// Verify file was copied
 	if _, err := os.Stat(filepath.Join(destDir, "IMG_0001.JPG")); os.IsNotExist(err) {
 		t.Error("expected file to be imported")
+	}
+}
+
+func TestRunWatchImportCollectsAllErrors(t *testing.T) {
+	// Create temp volumes dir with two subdirectories
+	volumesDir, err := os.MkdirTemp("", "volumes-errs")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(volumesDir)
+
+	// Create two fake volumes with DCIM
+	for _, name := range []string{"CARD_A", "CARD_B"} {
+		cardDir := filepath.Join(volumesDir, name)
+		if err := os.MkdirAll(filepath.Join(cardDir, "DCIM"), 0755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(cardDir, "DCIM", "IMG.JPG"), []byte("data"), 0644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	mockFn := func(mp string) (*VolumeInfo, error) {
+		return &VolumeInfo{
+			VolumeName:                     filepath.Base(mp),
+			Ejectable:                      true,
+			Internal:                       false,
+			RemovableMediaOrExternalDevice: true,
+		}, nil
+	}
+
+	// Set DestDir to a path whose parent doesn't exist, so validateConfig fails for both
+	cfg := config{
+		DestDir:        "/nonexistent-parent/dest",
+		SidecarDefault: SidecarDelete,
+		Sidecars:       make(map[string]SidecarAction),
+		Watch: WatchConfig{
+			RequireDCIM:   true,
+			Notifications: false,
+		},
+	}
+
+	err = runWatchImport(cfg, volumesDir, mockFn)
+	if err == nil {
+		t.Fatal("expected error from runWatchImport, got nil")
+	}
+
+	errStr := err.Error()
+	if !strings.Contains(errStr, "CARD_A") {
+		t.Errorf("expected error to mention CARD_A, got: %s", errStr)
+	}
+	if !strings.Contains(errStr, "CARD_B") {
+		t.Errorf("expected error to mention CARD_B, got: %s", errStr)
+	}
+}
+
+func TestRunWatchImportVerboseLogging(t *testing.T) {
+	volumesDir := t.TempDir()
+
+	// Create a volume that will be filtered out (no DCIM)
+	os.MkdirAll(filepath.Join(volumesDir, "USB_DRIVE"), 0755)
+
+	mockFn := func(mp string) (*VolumeInfo, error) {
+		return &VolumeInfo{
+			VolumeName:                     filepath.Base(mp),
+			Ejectable:                      true,
+			Internal:                       false,
+			RemovableMediaOrExternalDevice: true,
+		}, nil
+	}
+
+	cfg := config{
+		DestDir:        t.TempDir(),
+		Verbose:        true,
+		SidecarDefault: SidecarDelete,
+		Sidecars:       make(map[string]SidecarAction),
+		Watch: WatchConfig{
+			RequireDCIM:   true,
+			Notifications: false,
+		},
+	}
+
+	// Capture stdout
+	oldStdout := os.Stdout
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	os.Stdout = w
+
+	_ = runWatchImport(cfg, volumesDir, mockFn)
+
+	w.Close()
+	os.Stdout = oldStdout
+
+	output := make([]byte, 8192)
+	n, _ := r.Read(output)
+	outputStr := string(output[:n])
+
+	if !strings.Contains(outputStr, "Config:") {
+		t.Errorf("expected verbose output to contain 'Config:', got:\n%s", outputStr)
+	}
+	if !strings.Contains(outputStr, "Scanning") {
+		t.Errorf("expected verbose output to contain 'Scanning', got:\n%s", outputStr)
+	}
+	if !strings.Contains(outputStr, "Evaluating volume:") {
+		t.Errorf("expected verbose output to contain 'Evaluating volume:', got:\n%s", outputStr)
 	}
 }

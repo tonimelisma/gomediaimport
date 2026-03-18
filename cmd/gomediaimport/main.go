@@ -32,6 +32,7 @@ type cliArgs struct {
 	RenameByDateTime   bool       `arg:"--rename-by-date-time" help:"Rename files by date and time"`
 	ChecksumDuplicates bool       `arg:"--checksum-duplicates" help:"Use checksums to identify duplicates"`
 	Verbose            bool       `arg:"-v,--verbose" help:"Enable verbose output"`
+	Quiet              bool       `arg:"-q,--quiet" help:"Suppress all non-error output"`
 	DryRun             bool       `arg:"--dry-run" help:"Perform a dry run without making changes"`
 	SkipThumbnails     bool       `arg:"--skip-thumbnails" help:"Skip thumbnail generation"`
 	DeleteOriginals    bool       `arg:"--delete-originals" help:"Delete original files after successful import"`
@@ -61,6 +62,7 @@ type config struct {
 	RenameByDateTime   bool                     `yaml:"rename_by_date_time"`
 	ChecksumDuplicates bool                     `yaml:"checksum_duplicates"`
 	Verbose            bool                     `yaml:"verbose"`
+	Quiet              bool                     `yaml:"quiet"`
 	DryRun             bool                     `yaml:"dry_run"`
 	SkipThumbnails     bool                     `yaml:"skip_thumbnails"`
 	DeleteOriginals    bool                     `yaml:"delete_originals"`
@@ -249,6 +251,12 @@ func run(osArgs []string) error {
 	}
 	if wasFlagProvided(osArgs, "--workers") {
 		cfg.Workers = parsedArgs.Workers
+	}
+	if wasFlagProvided(osArgs, "-q") || wasFlagProvided(osArgs, "--quiet") {
+		cfg.Quiet = parsedArgs.Quiet
+	}
+	if cfg.Quiet {
+		cfg.Verbose = false
 	}
 
 	// Validate the configuration

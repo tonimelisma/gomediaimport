@@ -54,6 +54,7 @@ gomediaimport watch [--install | --uninstall | --status]
 - `--rename-by-date-time`: Rename files to `YYYYMMDD_HHMMSS` format based on creation date
 - `--checksum-duplicates`: Use xxHash64 checksums for duplicate detection (slower but more accurate; otherwise uses file size and timestamp)
 - `-v, --verbose`: Enable verbose output with progress information
+- `-q, --quiet`: Suppress all non-error output (forces verbose off)
 - `--dry-run`: Preview what would happen without making any changes
 - `--skip-thumbnails`: Skip thumbnail directories in source data (e.g. video thumbnails)
 - `--delete-originals`: Delete original files after successful import

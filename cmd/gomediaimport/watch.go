@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -29,13 +30,17 @@ func runWatch(cfg config, watch *watchArgs) error {
 	if runtime.GOOS != "darwin" {
 		return fmt.Errorf("watch mode is only supported on macOS")
 	}
+	pPath, err := plistPath()
+	if err != nil {
+		return err
+	}
 	switch {
 	case watch.Install:
-		return installLaunchAgent(cfg)
+		return installLaunchAgent(cfg, pPath)
 	case watch.Uninstall:
-		return uninstallLaunchAgent()
+		return uninstallLaunchAgent(pPath)
 	case watch.Status:
-		return watchStatus(cfg)
+		return watchStatus(cfg, pPath)
 	case watch.Run:
 		return runWatchImport(cfg, "/Volumes", diskutilInfoReal)
 	default:
@@ -69,12 +74,7 @@ func generatePlist(binaryPath, homeDir string) ([]byte, error) {
 	return plist.MarshalIndent(p, plist.XMLFormat, "\t")
 }
 
-func installLaunchAgent(cfg config) error {
-	pPath, err := plistPath()
-	if err != nil {
-		return err
-	}
-
+func installLaunchAgent(cfg config, pPath string) error {
 	// Refuse if already installed
 	if _, err := os.Stat(pPath); err == nil {
 		return fmt.Errorf("LaunchAgent already installed at %s\nRun 'gomediaimport watch --uninstall' first", pPath)
@@ -135,12 +135,7 @@ func installLaunchAgent(cfg config) error {
 	return nil
 }
 
-func uninstallLaunchAgent() error {
-	pPath, err := plistPath()
-	if err != nil {
-		return err
-	}
-
+func uninstallLaunchAgent(pPath string) error {
 	// Check if installed
 	if _, err := os.Stat(pPath); os.IsNotExist(err) {
 		fmt.Println("LaunchAgent is not installed.")
@@ -164,12 +159,7 @@ func uninstallLaunchAgent() error {
 	return nil
 }
 
-func watchStatus(cfg config) error {
-	pPath, err := plistPath()
-	if err != nil {
-		return err
-	}
-
+func watchStatus(cfg config, pPath string) error {
 	_, statErr := os.Stat(pPath)
 	installed := statErr == nil
 
@@ -207,14 +197,25 @@ func watchStatus(cfg config) error {
 }
 
 func runWatchImport(cfg config, volumesDir string, diskutilFn diskutilInfoFn) error {
-	fmt.Printf("[%s] Watch import triggered\n", time.Now().Format("2006-01-02 15:04:05"))
+	if !cfg.Quiet {
+		fmt.Printf("[%s] Watch import triggered\n", time.Now().Format("2006-01-02 15:04:05"))
+	}
+
+	if cfg.Verbose {
+		fmt.Printf("  Config: dest=%s require_dcim=%v volumes=%v notifications=%v\n",
+			cfg.DestDir, cfg.Watch.RequireDCIM, cfg.Watch.Volumes, cfg.Watch.Notifications)
+	}
 
 	entries, err := os.ReadDir(volumesDir)
 	if err != nil {
 		return fmt.Errorf("failed to read %s: %w", volumesDir, err)
 	}
 
-	var firstErr error
+	if cfg.Verbose {
+		fmt.Printf("  Scanning %d entries in %s\n", len(entries), volumesDir)
+	}
+
+	var errs []error
 	importCount := 0
 
 	for _, entry := range entries {
@@ -223,6 +224,10 @@ func runWatchImport(cfg config, volumesDir string, diskutilFn diskutilInfoFn) er
 		}
 
 		mountPoint := filepath.Join(volumesDir, entry.Name())
+
+		if cfg.Verbose {
+			fmt.Printf("  Evaluating volume: %s\n", entry.Name())
+		}
 
 		pass, err := filterVolume(mountPoint, cfg, diskutilFn)
 		if err != nil {
@@ -233,7 +238,9 @@ func runWatchImport(cfg config, volumesDir string, diskutilFn diskutilInfoFn) er
 			continue
 		}
 
-		fmt.Printf("Importing from volume: %s\n", entry.Name())
+		if !cfg.Quiet {
+			fmt.Printf("Importing from volume: %s\n", entry.Name())
+		}
 		if cfg.Watch.Notifications {
 			sendNotification("Go Media Import", fmt.Sprintf("Camera card detected: %s — importing to %s...", entry.Name(), cfg.DestDir))
 		}
@@ -247,9 +254,7 @@ func runWatchImport(cfg config, volumesDir string, diskutilFn diskutilInfoFn) er
 			if cfg.Watch.Notifications {
 				sendNotification("Go Media Import", fmt.Sprintf("Import failed for %s: %s", entry.Name(), err))
 			}
-			if firstErr == nil {
-				firstErr = fmt.Errorf("%s", errMsg)
-			}
+			errs = append(errs, fmt.Errorf("%s", errMsg))
 			continue
 		}
 
@@ -259,9 +264,7 @@ func runWatchImport(cfg config, volumesDir string, diskutilFn diskutilInfoFn) er
 			if cfg.Watch.Notifications {
 				sendNotification("Go Media Import", fmt.Sprintf("Import failed for %s: %s", entry.Name(), err))
 			}
-			if firstErr == nil {
-				firstErr = fmt.Errorf("%s", errMsg)
-			}
+			errs = append(errs, fmt.Errorf("%s", errMsg))
 			continue
 		}
 
@@ -271,9 +274,9 @@ func runWatchImport(cfg config, volumesDir string, diskutilFn diskutilInfoFn) er
 		}
 	}
 
-	if importCount == 0 && firstErr == nil {
+	if importCount == 0 && len(errs) == 0 && !cfg.Quiet {
 		fmt.Println("No matching volumes found.")
 	}
 
-	return firstErr
+	return errors.Join(errs...)
 }

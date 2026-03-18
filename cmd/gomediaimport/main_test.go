@@ -798,3 +798,39 @@ func TestRunWorkersOverride(t *testing.T) {
 		t.Errorf("expected workers=8 after CLI override, got %d", cfg.Workers)
 	}
 }
+
+func TestRunQuietSuppressesOutput(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Create a source file so there's something to import
+	if err := os.WriteFile(filepath.Join(tmpDir, "IMG_0001.JPG"), []byte("fake jpeg"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	destDir := t.TempDir()
+
+	// Capture stdout
+	oldStdout := os.Stdout
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	os.Stdout = w
+
+	runErr := run([]string{"cmd", "--source", tmpDir, "--dest", destDir, "--quiet", "--config", emptyConfigFile(t)})
+
+	w.Close()
+	os.Stdout = oldStdout
+
+	if runErr != nil {
+		t.Fatalf("run() with --quiet returned error: %v", runErr)
+	}
+
+	output := make([]byte, 4096)
+	n, _ := r.Read(output)
+	outputStr := string(output[:n])
+
+	if len(outputStr) > 0 {
+		t.Errorf("expected no stdout output with --quiet, got:\n%s", outputStr)
+	}
+}

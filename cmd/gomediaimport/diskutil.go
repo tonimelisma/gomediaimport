@@ -58,10 +58,22 @@ func filterVolume(mountPoint string, cfg config, diskutilFn diskutilInfoFn) (boo
 	if err != nil {
 		return false, err
 	}
+
+	if cfg.Verbose {
+		fmt.Printf("  [filter] %s: ejectable=%v internal=%v removable=%v\n",
+			info.VolumeName, info.Ejectable, info.Internal, info.RemovableMediaOrExternalDevice)
+	}
+
 	if !info.Ejectable {
+		if cfg.Verbose {
+			fmt.Printf("  [filter] %s: rejected — not ejectable\n", info.VolumeName)
+		}
 		return false, nil
 	}
 	if info.Internal && !info.RemovableMediaOrExternalDevice {
+		if cfg.Verbose {
+			fmt.Printf("  [filter] %s: rejected — internal, not removable\n", info.VolumeName)
+		}
 		return false, nil
 	}
 
@@ -70,6 +82,9 @@ func filterVolume(mountPoint string, cfg config, diskutilFn diskutilInfoFn) (boo
 		dcimPath := filepath.Join(mountPoint, "DCIM")
 		fi, err := os.Stat(dcimPath)
 		if err != nil || !fi.IsDir() {
+			if cfg.Verbose {
+				fmt.Printf("  [filter] %s: rejected — no DCIM folder\n", info.VolumeName)
+			}
 			return false, nil
 		}
 	}
@@ -85,9 +100,15 @@ func filterVolume(mountPoint string, cfg config, diskutilFn diskutilInfoFn) (boo
 			}
 		}
 		if !matched {
+			if cfg.Verbose {
+				fmt.Printf("  [filter] %s: rejected — not in allowlist %v\n", info.VolumeName, cfg.Watch.Volumes)
+			}
 			return false, nil
 		}
 	}
 
+	if cfg.Verbose {
+		fmt.Printf("  [filter] %s: accepted\n", info.VolumeName)
+	}
 	return true, nil
 }

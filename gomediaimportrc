@@ -22,6 +22,9 @@ checksum_duplicates: false
 # Enable verbose output
 verbose: false
 
+# Suppress all non-error output (forces verbose off)
+quiet: false
+
 # Perform a dry run without making changes
 dry_run: false
 

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -280,6 +281,52 @@ func TestFilterVolumeEmptyAllowlistAcceptsAll(t *testing.T) {
 	}
 	if !pass {
 		t.Error("expected all volumes to pass when allowlist is empty")
+	}
+}
+
+func TestFilterVolumeVerboseLogging(t *testing.T) {
+	mockFn := func(mountPoint string) (*VolumeInfo, error) {
+		return &VolumeInfo{
+			VolumeName: "Macintosh HD",
+			Ejectable:  false,
+			Internal:   true,
+		}, nil
+	}
+
+	cfg := config{
+		Verbose: true,
+		Watch:   WatchConfig{RequireDCIM: false},
+	}
+
+	// Capture stdout
+	oldStdout := os.Stdout
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	os.Stdout = w
+
+	pass, filterErr := filterVolume("/Volumes/Macintosh HD", cfg, mockFn)
+
+	w.Close()
+	os.Stdout = oldStdout
+
+	if filterErr != nil {
+		t.Fatalf("unexpected error: %v", filterErr)
+	}
+	if pass {
+		t.Error("expected volume to be rejected")
+	}
+
+	output := make([]byte, 4096)
+	n, _ := r.Read(output)
+	outputStr := string(output[:n])
+
+	if !strings.Contains(outputStr, "rejected") {
+		t.Errorf("expected verbose output to contain 'rejected', got:\n%s", outputStr)
+	}
+	if !strings.Contains(outputStr, "not ejectable") {
+		t.Errorf("expected verbose output to contain 'not ejectable', got:\n%s", outputStr)
 	}
 }
 
