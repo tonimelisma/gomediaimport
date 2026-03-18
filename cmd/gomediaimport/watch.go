@@ -68,7 +68,7 @@ func generatePlist(binaryPath, homeDir string) ([]byte, error) {
 		StandardErrorPath: filepath.Join(homeDir, "Library", "Logs", "gomediaimport.err.log"),
 		EnvironmentVariables: map[string]string{
 			"HOME": homeDir,
-			"PATH": "/usr/local/bin:/usr/bin:/bin:/opt/homebrew/bin",
+			"PATH": "/usr/local/bin:/usr/bin:/usr/sbin:/bin:/opt/homebrew/bin",
 		},
 	}
 	return plist.MarshalIndent(p, plist.XMLFormat, "\t")

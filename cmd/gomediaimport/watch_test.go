@@ -115,7 +115,7 @@ func TestPlistContent(t *testing.T) {
 	if p.EnvironmentVariables["HOME"] != homeDir {
 		t.Errorf("expected HOME=%s, got %s", homeDir, p.EnvironmentVariables["HOME"])
 	}
-	if p.EnvironmentVariables["PATH"] != "/usr/local/bin:/usr/bin:/bin:/opt/homebrew/bin" {
+	if p.EnvironmentVariables["PATH"] != "/usr/local/bin:/usr/bin:/usr/sbin:/bin:/opt/homebrew/bin" {
 		t.Errorf("unexpected PATH: %s", p.EnvironmentVariables["PATH"])
 	}
 }
