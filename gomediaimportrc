@@ -55,6 +55,11 @@ workers: 0
 # Only import from volumes with a DCIM/ directory (default: true)
 watch_require_dcim: true
 
+# Play a macOS system sound when watch import completes (default: Hero)
+# Available: Basso, Blow, Bottle, Frog, Funk, Glass, Hero, Morse, Ping, Pop, Purr, Sosumi, Submarine, Tink
+# Set to empty string to disable: watch_sound: ""
+watch_sound: Hero
+
 # Volume name allowlist (glob patterns). Empty = all ejectable volumes.
 # watch_volumes:
 #   - "EOS_DIGITAL"

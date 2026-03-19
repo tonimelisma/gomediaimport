@@ -1,5 +1,10 @@
 # Changelog
 
+## [v1.5.2] - 2026-03-18
+
+### Features
+- **Watch mode sound alert**: plays a macOS system sound (`afplay`) when watch import completes. Configurable via `watch_sound` in `~/.gomediaimportrc` (default: `Hero`). Set to empty string to disable. Available sounds: Basso, Blow, Bottle, Frog, Funk, Glass, Hero, Morse, Ping, Pop, Purr, Sosumi, Submarine, Tink.
+
 ## [v1.5.1] - 2026-03-17
 
 ### Removed

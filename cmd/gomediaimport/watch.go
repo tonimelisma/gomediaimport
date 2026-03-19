@@ -194,6 +194,14 @@ func watchStatus(cfg config, pPath string) error {
 	return nil
 }
 
+func playSound(name string) {
+	soundPath := "/System/Library/Sounds/" + name + ".aiff"
+	cmd := exec.Command("afplay", soundPath)
+	if err := cmd.Run(); err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: failed to play sound %q: %v\n", name, err)
+	}
+}
+
 func runWatchImport(cfg config, volumesDir string, diskutilFn diskutilInfoFn) error {
 	if !cfg.Quiet {
 		fmt.Printf("[%s] Watch import triggered\n", time.Now().Format("2006-01-02 15:04:05"))
@@ -262,6 +270,10 @@ func runWatchImport(cfg config, volumesDir string, diskutilFn diskutilInfoFn) er
 
 	if importCount == 0 && len(errs) == 0 && !cfg.Quiet {
 		fmt.Println("No matching volumes found.")
+	}
+
+	if importCount > 0 && cfg.Watch.Sound != "" && runtime.GOOS == "darwin" {
+		playSound(cfg.Watch.Sound)
 	}
 
 	return errors.Join(errs...)

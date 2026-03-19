@@ -50,6 +50,7 @@ func (cliArgs) Version() string {
 type WatchConfig struct {
 	RequireDCIM bool     `yaml:"watch_require_dcim"`
 	Volumes     []string `yaml:"watch_volumes"`
+	Sound       string   `yaml:"watch_sound"`
 }
 
 // config holds the application configuration
@@ -93,6 +94,7 @@ func setDefaults(cfg *config) error {
 	cfg.Sidecars = make(map[string]SidecarAction)
 	cfg.Workers = 0
 	cfg.Watch.RequireDCIM = true
+	cfg.Watch.Sound = "Hero"
 	return nil
 }
 

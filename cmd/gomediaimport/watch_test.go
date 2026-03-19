@@ -21,6 +21,55 @@ func TestWatchConfigDefaults(t *testing.T) {
 	if len(cfg.Watch.Volumes) != 0 {
 		t.Errorf("expected Watch.Volumes default to be empty, got %v", cfg.Watch.Volumes)
 	}
+	if cfg.Watch.Sound != "Hero" {
+		t.Errorf("expected Watch.Sound default to be 'Hero', got %q", cfg.Watch.Sound)
+	}
+}
+
+func TestWatchSoundFromYAML(t *testing.T) {
+	content := `watch_sound: Glass`
+	tmpFile, err := os.CreateTemp("", "watch-sound-*.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(tmpFile.Name())
+	tmpFile.Write([]byte(content))
+	tmpFile.Close()
+
+	cfg := &config{}
+	if err := setDefaults(cfg); err != nil {
+		t.Fatal(err)
+	}
+	cfg.ConfigFile = tmpFile.Name()
+	if err := parseConfigFile(cfg); err != nil {
+		t.Fatalf("parseConfigFile failed: %v", err)
+	}
+	if cfg.Watch.Sound != "Glass" {
+		t.Errorf("expected Watch.Sound='Glass', got %q", cfg.Watch.Sound)
+	}
+}
+
+func TestWatchSoundDisabledFromYAML(t *testing.T) {
+	content := `watch_sound: ""`
+	tmpFile, err := os.CreateTemp("", "watch-sound-disabled-*.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(tmpFile.Name())
+	tmpFile.Write([]byte(content))
+	tmpFile.Close()
+
+	cfg := &config{}
+	if err := setDefaults(cfg); err != nil {
+		t.Fatal(err)
+	}
+	cfg.ConfigFile = tmpFile.Name()
+	if err := parseConfigFile(cfg); err != nil {
+		t.Fatalf("parseConfigFile failed: %v", err)
+	}
+	if cfg.Watch.Sound != "" {
+		t.Errorf("expected Watch.Sound to be empty, got %q", cfg.Watch.Sound)
+	}
 }
 
 func TestWatchConfigFromYAML(t *testing.T) {
