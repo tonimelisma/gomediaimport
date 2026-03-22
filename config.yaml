@@ -1,5 +1,8 @@
-# ~/.gomediaimportrc example
-# Copy this into your home directory to set defaults.
+# gomediaimport config file
+#
+# Place at:
+#   macOS:  ~/Library/Application Support/gomediaimport/config.yaml
+#   Linux:  ~/.config/gomediaimport/config.yaml
 # Configuration file defaults will always be overridden by command-line parameters.
 
 # Source directory for media files
@@ -34,8 +37,8 @@ skip_thumbnails: false
 # Delete original files after successful import
 delete_originals: false
 
-# Automatically eject media after import on macOS (e.g., source drive)
-auto_eject_macos: false
+# Automatically eject source media after successful import
+auto_eject: false
 
 # Default action for unknown sidecar file types: ignore, copy, or delete
 sidecar_default: delete

@@ -41,7 +41,7 @@ To embed the version number, pass it via `-ldflags` as shown above. Without it, 
 gomediaimport [--source SOURCE] [--dest DEST] [--config CONFIG]
   [--organize-by-date] [--rename-by-date-time] [--checksum-duplicates]
   [-v] [--dry-run] [--skip-thumbnails] [--delete-originals]
-  [--auto-eject-macos] [--sidecar-default ACTION]
+  [--auto-eject] [--sidecar-default ACTION]
   [--workers N] [--version]
 
 gomediaimport watch [--install | --uninstall | --status]
@@ -58,7 +58,7 @@ gomediaimport watch [--install | --uninstall | --status]
 - `--dry-run`: Preview what would happen without making any changes
 - `--skip-thumbnails`: Skip thumbnail directories in source data (e.g. video thumbnails)
 - `--delete-originals`: Delete original files after successful import
-- `--auto-eject-macos`: On macOS, eject the source drive after a fully successful import (default: `false`)
+- `--auto-eject`: Eject the source drive after a fully successful import (default: `false`). Uses `diskutil eject` on macOS, `udisksctl unmount` on Linux.
 - `--sidecar-default ACTION`: Default action for sidecar file types: `ignore`, `copy`, or `delete` (default: `delete`)
 - `--workers N`: Number of concurrent copy workers (default: 4)
 - `--version`: Print version and exit
@@ -102,11 +102,14 @@ gomediaimport watch --uninstall
 
 ## Configuration
 
-gomediaimport can be configured using a YAML configuration file. By default, the program looks for `~/.gomediaimportrc`, but you can specify a different path using `--config`.
+gomediaimport can be configured using a YAML configuration file. The default config location is platform-idiomatic:
 
-An example configuration file [`gomediaimportrc`](gomediaimportrc) is provided in the root of this repository. Copy it to `~/.gomediaimportrc` and modify it according to your needs.
+- **macOS**: `~/Library/Application Support/gomediaimport/config.yaml`
+- **Linux**: `~/.config/gomediaimport/config.yaml`
 
-Command-line arguments always override settings in the configuration file. Configuration precedence: CLI flags > YAML config file > built-in defaults.
+You can specify a different path using `--config`.
+
+An example configuration file [`config.yaml`](config.yaml) is provided in the root of this repository.
 
 ### Watch-specific configuration
 
@@ -176,7 +179,7 @@ File type support is defined in `media_types.go`. Pull requests for missing file
 
 4. **Concurrent Copying**: Copies files using a worker pool (default 4 workers) with size-interleaved scheduling for balanced load. Files are synced to disk and verified for completeness.
 
-5. **Cleanup**: Optionally deletes original files after successful copy. On macOS, can eject the source drive.
+5. **Cleanup**: Optionally deletes original files after successful copy. Can eject the source drive (macOS via `diskutil`, Linux via `udisksctl`).
 
 ## Contributing
 

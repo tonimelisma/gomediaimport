@@ -36,7 +36,7 @@ type cliArgs struct {
 	DryRun             bool       `arg:"--dry-run" help:"Perform a dry run without making changes"`
 	SkipThumbnails     bool       `arg:"--skip-thumbnails" help:"Skip thumbnail generation"`
 	DeleteOriginals    bool       `arg:"--delete-originals" help:"Delete original files after successful import"`
-	AutoEjectMacOS     bool       `arg:"--auto-eject-macos" help:"Automatically eject media after import on macOS (e.g., source drive)"`
+	AutoEject          bool       `arg:"--auto-eject" help:"Automatically eject source media after successful import"`
 	SidecarDefault     string     `arg:"--sidecar-default" help:"Default action for unknown sidecar types (ignore/copy/delete)" default:"delete"`
 	Workers            int        `arg:"--workers" help:"Number of concurrent copy workers (0 = default of 4)"`
 }
@@ -66,7 +66,7 @@ type config struct {
 	DryRun             bool                     `yaml:"dry_run"`
 	SkipThumbnails     bool                     `yaml:"skip_thumbnails"`
 	DeleteOriginals    bool                     `yaml:"delete_originals"`
-	AutoEjectMacOS     bool                     `yaml:"auto_eject_macos"`
+	AutoEject          bool                     `yaml:"auto_eject"`
 	SidecarDefault     SidecarAction            `yaml:"sidecar_default"`
 	Sidecars           map[string]SidecarAction `yaml:"sidecars"`
 	Workers            int                      `yaml:"workers"`
@@ -79,9 +79,13 @@ func setDefaults(cfg *config) error {
 	if err != nil {
 		return fmt.Errorf("failed to get user home directory: %v", err)
 	}
+	configDir, err := os.UserConfigDir()
+	if err != nil {
+		return fmt.Errorf("failed to get user config directory: %v", err)
+	}
 
 	cfg.DestDir = filepath.Join(homeDir, "Pictures")
-	cfg.ConfigFile = filepath.Join(homeDir, ".gomediaimportrc")
+	cfg.ConfigFile = filepath.Join(configDir, "gomediaimport", "config.yaml")
 	cfg.OrganizeByDate = false
 	cfg.RenameByDateTime = false
 	cfg.ChecksumDuplicates = false
@@ -89,7 +93,7 @@ func setDefaults(cfg *config) error {
 	cfg.DryRun = false
 	cfg.SkipThumbnails = false
 	cfg.DeleteOriginals = false
-	cfg.AutoEjectMacOS = false
+	cfg.AutoEject = false
 	cfg.SidecarDefault = SidecarDelete
 	cfg.Sidecars = make(map[string]SidecarAction)
 	cfg.Workers = 0
@@ -243,8 +247,8 @@ func run(osArgs []string) error {
 	if wasFlagProvided(osArgs, "--delete-originals") {
 		cfg.DeleteOriginals = parsedArgs.DeleteOriginals
 	}
-	if wasFlagProvided(osArgs, "--auto-eject-macos") {
-		cfg.AutoEjectMacOS = parsedArgs.AutoEjectMacOS
+	if wasFlagProvided(osArgs, "--auto-eject") {
+		cfg.AutoEject = parsedArgs.AutoEject
 	}
 	if wasFlagProvided(osArgs, "--sidecar-default") {
 		cfg.SidecarDefault = SidecarAction(parsedArgs.SidecarDefault)

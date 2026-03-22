@@ -36,8 +36,10 @@ func TestSetDefaults(t *testing.T) {
 		t.Errorf("Expected DestDir to be %s, got %s", filepath.Join(homeDir, "Pictures"), cfg.DestDir)
 	}
 
-	if cfg.ConfigFile != filepath.Join(homeDir, ".gomediaimportrc") {
-		t.Errorf("Expected ConfigFile to be %s, got %s", filepath.Join(homeDir, ".gomediaimportrc"), cfg.ConfigFile)
+	configDir, _ := os.UserConfigDir()
+	expectedConfig := filepath.Join(configDir, "gomediaimport", "config.yaml")
+	if cfg.ConfigFile != expectedConfig {
+		t.Errorf("Expected ConfigFile to be %s, got %s", expectedConfig, cfg.ConfigFile)
 	}
 
 	if cfg.OrganizeByDate != false {
@@ -403,20 +405,20 @@ func TestConfigFilePermissions(t *testing.T) {
 }
 
 func TestWasFlagProvided(t *testing.T) {
-	osArgs := []string{"cmd", "--source", "/some/dir", "--verbose", "--auto-eject-macos=false"}
+	osArgs := []string{"cmd", "--source", "/some/dir", "--verbose", "--auto-eject=false"}
 
 	if !wasFlagProvided(osArgs, "--verbose") {
 		t.Error("expected --verbose to be detected")
 	}
-	if !wasFlagProvided(osArgs, "--auto-eject-macos") {
-		t.Error("expected --auto-eject-macos to be detected (=false form)")
+	if !wasFlagProvided(osArgs, "--auto-eject") {
+		t.Error("expected --auto-eject to be detected (=false form)")
 	}
 	if wasFlagProvided(osArgs, "--dry-run") {
 		t.Error("expected --dry-run to NOT be detected")
 	}
 }
 
-func TestAutoEjectMacOSConfiguration(t *testing.T) {
+func TestAutoEjectConfiguration(t *testing.T) {
 	createTempConfig := func(t *testing.T, content string) string {
 		t.Helper()
 		tmpfile, err := os.CreateTemp("", "config-autoeject-*.yaml")
@@ -436,7 +438,7 @@ func TestAutoEjectMacOSConfiguration(t *testing.T) {
 	}
 
 	t.Run("ParseFromConfigFile_True", func(t *testing.T) {
-		tmpFileName := createTempConfig(t, "auto_eject_macos: true")
+		tmpFileName := createTempConfig(t, "auto_eject: true")
 		defer os.Remove(tmpFileName)
 
 		cfg := &config{}
@@ -447,13 +449,13 @@ func TestAutoEjectMacOSConfiguration(t *testing.T) {
 		if err := parseConfigFile(cfg); err != nil {
 			t.Fatalf("parseConfigFile failed: %v", err)
 		}
-		if !cfg.AutoEjectMacOS {
-			t.Errorf("Expected AutoEjectMacOS to be true from config file, got false")
+		if !cfg.AutoEject {
+			t.Errorf("Expected AutoEject to be true from config file, got false")
 		}
 	})
 
 	t.Run("ParseFromConfigFile_False", func(t *testing.T) {
-		tmpFileName := createTempConfig(t, "auto_eject_macos: false")
+		tmpFileName := createTempConfig(t, "auto_eject: false")
 		defer os.Remove(tmpFileName)
 
 		cfg := &config{}
@@ -464,16 +466,16 @@ func TestAutoEjectMacOSConfiguration(t *testing.T) {
 		if err := parseConfigFile(cfg); err != nil {
 			t.Fatalf("parseConfigFile failed: %v", err)
 		}
-		if cfg.AutoEjectMacOS {
-			t.Errorf("Expected AutoEjectMacOS to be false from config file, got true")
+		if cfg.AutoEject {
+			t.Errorf("Expected AutoEject to be false from config file, got true")
 		}
 	})
 
 	t.Run("CLITrueOverConfigFalse", func(t *testing.T) {
-		tmpFileName := createTempConfig(t, "auto_eject_macos: false")
+		tmpFileName := createTempConfig(t, "auto_eject: false")
 		defer os.Remove(tmpFileName)
 
-		osArgs := []string{"cmd", "--source", "/tmp", "--auto-eject-macos"}
+		osArgs := []string{"cmd", "--source", "/tmp", "--auto-eject"}
 
 		cfg := &config{}
 		if err := setDefaults(cfg); err != nil {
@@ -492,20 +494,20 @@ func TestAutoEjectMacOSConfiguration(t *testing.T) {
 		}
 		_ = p.Parse(osArgs[1:])
 
-		if wasFlagProvided(osArgs, "--auto-eject-macos") {
-			cfg.AutoEjectMacOS = parsedArgs.AutoEjectMacOS
+		if wasFlagProvided(osArgs, "--auto-eject") {
+			cfg.AutoEject = parsedArgs.AutoEject
 		}
 
-		if !cfg.AutoEjectMacOS {
-			t.Errorf("Expected AutoEjectMacOS to be true (CLI override), got false")
+		if !cfg.AutoEject {
+			t.Errorf("Expected AutoEject to be true (CLI override), got false")
 		}
 	})
 
 	t.Run("CLIFalseOverConfigTrue", func(t *testing.T) {
-		tmpFileName := createTempConfig(t, "auto_eject_macos: true")
+		tmpFileName := createTempConfig(t, "auto_eject: true")
 		defer os.Remove(tmpFileName)
 
-		osArgs := []string{"cmd", "--source", "/tmp", "--auto-eject-macos=false"}
+		osArgs := []string{"cmd", "--source", "/tmp", "--auto-eject=false"}
 
 		cfg := &config{}
 		if err := setDefaults(cfg); err != nil {
@@ -524,12 +526,12 @@ func TestAutoEjectMacOSConfiguration(t *testing.T) {
 		}
 		_ = p.Parse(osArgs[1:])
 
-		if wasFlagProvided(osArgs, "--auto-eject-macos") {
-			cfg.AutoEjectMacOS = parsedArgs.AutoEjectMacOS
+		if wasFlagProvided(osArgs, "--auto-eject") {
+			cfg.AutoEject = parsedArgs.AutoEject
 		}
 
-		if cfg.AutoEjectMacOS {
-			t.Errorf("Expected AutoEjectMacOS to be false (CLI override), got true")
+		if cfg.AutoEject {
+			t.Errorf("Expected AutoEject to be false (CLI override), got true")
 		}
 	})
 
@@ -538,8 +540,8 @@ func TestAutoEjectMacOSConfiguration(t *testing.T) {
 		if err := setDefaults(cfg); err != nil {
 			t.Fatalf("setDefaults failed: %v", err)
 		}
-		if cfg.AutoEjectMacOS {
-			t.Errorf("Expected AutoEjectMacOS to be false (default), got true")
+		if cfg.AutoEject {
+			t.Errorf("Expected AutoEject to be false (default), got true")
 		}
 	})
 }

@@ -652,7 +652,7 @@ func TestHumanReadableDurationEdgeCases(t *testing.T) {
 		{0, "0s"},
 		{-5 * time.Second, "0s"},
 		{-1 * time.Hour, "0s"},
-		{500 * time.Millisecond, "0s"},  // less than 1 second
+		{500 * time.Millisecond, "0s"}, // less than 1 second
 		{5 * time.Second, "5s"},
 		{90 * time.Second, "1m30s"},
 	}

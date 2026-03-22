@@ -19,7 +19,7 @@ type launchAgentPlist struct {
 	ProgramArguments     []string          `plist:"ProgramArguments"`
 	StartOnMount         bool              `plist:"StartOnMount"`
 	ProcessType          string            `plist:"ProcessType"`
-	LowPriorityIO       bool              `plist:"LowPriorityIO"`
+	LowPriorityIO        bool              `plist:"LowPriorityIO"`
 	ThrottleInterval     int               `plist:"ThrottleInterval"`
 	StandardOutPath      string            `plist:"StandardOutPath"`
 	StandardErrorPath    string            `plist:"StandardErrorPath"`
@@ -58,13 +58,13 @@ func plistPath() (string, error) {
 
 func generatePlist(binaryPath, homeDir string) ([]byte, error) {
 	p := launchAgentPlist{
-		Label:            launchAgentLabel,
-		ProgramArguments: []string{binaryPath, "watch", "--run"},
-		StartOnMount:     true,
-		ProcessType:      "Background",
-		LowPriorityIO:   true,
-		ThrottleInterval: 5,
-		StandardOutPath:  filepath.Join(homeDir, "Library", "Logs", "gomediaimport.out.log"),
+		Label:             launchAgentLabel,
+		ProgramArguments:  []string{binaryPath, "watch", "--run"},
+		StartOnMount:      true,
+		ProcessType:       "Background",
+		LowPriorityIO:     true,
+		ThrottleInterval:  5,
+		StandardOutPath:   filepath.Join(homeDir, "Library", "Logs", "gomediaimport.out.log"),
 		StandardErrorPath: filepath.Join(homeDir, "Library", "Logs", "gomediaimport.err.log"),
 		EnvironmentVariables: map[string]string{
 			"HOME": homeDir,
@@ -82,7 +82,7 @@ func installLaunchAgent(cfg config, pPath string) error {
 
 	// Require destination directory
 	if cfg.DestDir == "" {
-		return fmt.Errorf("destination_directory must be set in ~/.gomediaimportrc before installing watch mode")
+		return fmt.Errorf("destination_directory must be set in config file before installing watch mode")
 	}
 
 	// Resolve binary path

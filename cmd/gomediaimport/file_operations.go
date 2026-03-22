@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
@@ -339,12 +340,42 @@ func copyFile(src, dst string) error {
 	return destFile.Close()
 }
 
-// ejectDriveMacOS attempts to eject the specified drive on macOS.
-func ejectDriveMacOS(sourceDir string) error {
+// ejectDrive ejects the specified drive using platform-appropriate tools.
+func ejectDrive(sourceDir string) error {
+	switch runtime.GOOS {
+	case "darwin":
+		return ejectDriveDarwin(sourceDir)
+	case "linux":
+		return ejectDriveLinux(sourceDir)
+	default:
+		return fmt.Errorf("auto-eject is not supported on %s", runtime.GOOS)
+	}
+}
+
+// ejectDriveDarwin ejects using macOS diskutil.
+func ejectDriveDarwin(sourceDir string) error {
 	cmd := exec.Command("diskutil", "eject", sourceDir)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("failed to eject drive %s: %v. Output: %s", sourceDir, err, string(output))
+	}
+	return nil
+}
+
+// ejectDriveLinux ejects using udisksctl (preferred) or umount (fallback).
+func ejectDriveLinux(sourceDir string) error {
+	if udisksctl, err := exec.LookPath("udisksctl"); err == nil {
+		cmd := exec.Command(udisksctl, "unmount", "--no-user-interaction", "-p", sourceDir)
+		output, err := cmd.CombinedOutput()
+		if err != nil {
+			return fmt.Errorf("udisksctl unmount failed for %s: %v. Output: %s", sourceDir, err, string(output))
+		}
+		return nil
+	}
+	cmd := exec.Command("umount", sourceDir)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("umount failed for %s: %v. Output: %s", sourceDir, err, string(output))
 	}
 	return nil
 }

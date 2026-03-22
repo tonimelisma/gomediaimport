@@ -430,7 +430,7 @@ func TestRunWatchImportScansVolumes(t *testing.T) {
 		SidecarDefault: SidecarDelete,
 		Sidecars:       make(map[string]SidecarAction),
 		Watch: WatchConfig{
-			RequireDCIM:   true,
+			RequireDCIM: true,
 		},
 	}
 
@@ -479,7 +479,7 @@ func TestRunWatchImportCollectsAllErrors(t *testing.T) {
 		SidecarDefault: SidecarDelete,
 		Sidecars:       make(map[string]SidecarAction),
 		Watch: WatchConfig{
-			RequireDCIM:   true,
+			RequireDCIM: true,
 		},
 	}
 
@@ -518,7 +518,7 @@ func TestRunWatchImportVerboseLogging(t *testing.T) {
 		SidecarDefault: SidecarDelete,
 		Sidecars:       make(map[string]SidecarAction),
 		Watch: WatchConfig{
-			RequireDCIM:   true,
+			RequireDCIM: true,
 		},
 	}
 

@@ -1,5 +1,17 @@
 # Changelog
 
+## [v1.6.0] - 2026-03-22
+
+### Breaking Changes
+- **Config file location**: now uses platform-idiomatic paths via `os.UserConfigDir()`: macOS `~/Library/Application Support/gomediaimport/config.yaml`, Linux `~/.config/gomediaimport/config.yaml`. The legacy `~/.gomediaimportrc` path is no longer read.
+- **`--auto-eject-macos` renamed to `--auto-eject`**: CLI flag, Go field (`AutoEjectMacOS` → `AutoEject`), and YAML key (`auto_eject_macos` → `auto_eject`) all renamed.
+
+### Features
+- **Linux eject support**: `--auto-eject` now works on Linux via `udisksctl unmount` (preferred) or `umount` (fallback). Cross-platform dispatch via `ejectDrive()` → `ejectDriveDarwin()` / `ejectDriveLinux()`.
+
+### Improvements
+- **Renamed example config**: `gomediaimportrc` → `config.yaml` with updated header documenting platform paths.
+
 ## [v1.5.2] - 2026-03-18
 
 ### Features

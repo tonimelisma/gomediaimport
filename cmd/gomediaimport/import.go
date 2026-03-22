@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"runtime"
 	"sort"
 	"strings"
 	"sync"
@@ -94,7 +93,7 @@ func importMedia(cfg config) error {
 		printSummary(files)
 	}
 
-	if cfg.AutoEjectMacOS && runtime.GOOS == "darwin" {
+	if cfg.AutoEject {
 		_ = ejectAfterImport(cfg.SourceDir, cfg.Quiet)
 	}
 
@@ -224,7 +223,7 @@ func ejectAfterImport(sourceDir string, quiet bool) error {
 	if !quiet {
 		fmt.Printf("Attempting auto-eject for %s...\n", sourceDir)
 	}
-	if err := ejectDriveMacOS(sourceDir); err != nil {
+	if err := ejectDrive(sourceDir); err != nil {
 		if !quiet {
 			fmt.Fprintf(os.Stderr, "Warning: eject failed for %s: %v\n", sourceDir, err)
 		}
