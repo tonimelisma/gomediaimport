@@ -631,7 +631,7 @@ func TestDeleteOriginalFilesReturnsError(t *testing.T) {
 	if err := os.Chmod(readOnlyDir, 0555); err != nil {
 		t.Fatal(err)
 	}
-	defer os.Chmod(readOnlyDir, 0755) // restore for cleanup
+	defer func() { _ = os.Chmod(readOnlyDir, 0755) }() // restore for cleanup
 
 	files := []FileInfo{
 		{SourceName: "locked.jpg", SourceDir: readOnlyDir, Status: StatusCopied, Size: 4},

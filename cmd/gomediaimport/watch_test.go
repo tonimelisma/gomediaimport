@@ -33,7 +33,9 @@ func TestWatchSoundFromYAML(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer os.Remove(tmpFile.Name())
-	tmpFile.Write([]byte(content))
+	if _, err := tmpFile.Write([]byte(content)); err != nil {
+		t.Fatal(err)
+	}
 	tmpFile.Close()
 
 	cfg := &config{}
@@ -56,7 +58,9 @@ func TestWatchSoundDisabledFromYAML(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer os.Remove(tmpFile.Name())
-	tmpFile.Write([]byte(content))
+	if _, err := tmpFile.Write([]byte(content)); err != nil {
+		t.Fatal(err)
+	}
 	tmpFile.Close()
 
 	cfg := &config{}
@@ -190,7 +194,9 @@ func TestInstallRequiresDestination(t *testing.T) {
 func TestInstallRefusesIfAlreadyInstalled(t *testing.T) {
 	tmpDir := t.TempDir()
 	pPath := filepath.Join(tmpDir, "test.plist")
-	os.WriteFile(pPath, []byte("fake"), 0644)
+	if err := os.WriteFile(pPath, []byte("fake"), 0644); err != nil {
+		t.Fatal(err)
+	}
 	cfg := config{DestDir: "/tmp/dest"}
 	err := installLaunchAgent(cfg, pPath)
 	if err == nil {
@@ -501,7 +507,9 @@ func TestRunWatchImportVerboseLogging(t *testing.T) {
 	volumesDir := t.TempDir()
 
 	// Create a volume that will be filtered out (no DCIM)
-	os.MkdirAll(filepath.Join(volumesDir, "USB_DRIVE"), 0755)
+	if err := os.MkdirAll(filepath.Join(volumesDir, "USB_DRIVE"), 0755); err != nil {
+		t.Fatal(err)
+	}
 
 	mockFn := func(mp string) (*VolumeInfo, error) {
 		return &VolumeInfo{
