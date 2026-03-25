@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [v1.7.0] - 2026-03-24
 
 ### Features
 - **Disk space check**: automatically verifies that there is sufficient free space on the destination volume before starting the import copy phase. This safety check is enabled by default. It can be bypassed using `--check-disk-space=false` via CLI, or setting `check_disk_space: false` in the config file.
