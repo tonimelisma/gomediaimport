@@ -37,6 +37,7 @@ type cliArgs struct {
 	SkipThumbnails     bool       `arg:"--skip-thumbnails" help:"Skip thumbnail generation"`
 	DeleteOriginals    bool       `arg:"--delete-originals" help:"Delete original files after successful import"`
 	AutoEject          bool       `arg:"--auto-eject" help:"Automatically eject source media after successful import"`
+	CheckDiskSpace     bool       `arg:"--check-disk-space" help:"Check for free disk space before importing" default:"true"`
 	SidecarDefault     string     `arg:"--sidecar-default" help:"Default action for unknown sidecar types (ignore/copy/delete)" default:"delete"`
 	Workers            int        `arg:"--workers" help:"Number of concurrent copy workers (0 = default of 4)"`
 }
@@ -67,6 +68,7 @@ type config struct {
 	SkipThumbnails     bool                     `yaml:"skip_thumbnails"`
 	DeleteOriginals    bool                     `yaml:"delete_originals"`
 	AutoEject          bool                     `yaml:"auto_eject"`
+	CheckDiskSpace     bool                     `yaml:"check_disk_space"`
 	SidecarDefault     SidecarAction            `yaml:"sidecar_default"`
 	Sidecars           map[string]SidecarAction `yaml:"sidecars"`
 	Workers            int                      `yaml:"workers"`
@@ -94,6 +96,7 @@ func setDefaults(cfg *config) error {
 	cfg.SkipThumbnails = false
 	cfg.DeleteOriginals = false
 	cfg.AutoEject = false
+	cfg.CheckDiskSpace = true
 	cfg.SidecarDefault = SidecarDelete
 	cfg.Sidecars = make(map[string]SidecarAction)
 	cfg.Workers = 0
@@ -249,6 +252,9 @@ func run(osArgs []string) error {
 	}
 	if wasFlagProvided(osArgs, "--auto-eject") {
 		cfg.AutoEject = parsedArgs.AutoEject
+	}
+	if wasFlagProvided(osArgs, "--check-disk-space") {
+		cfg.CheckDiskSpace = parsedArgs.CheckDiskSpace
 	}
 	if wasFlagProvided(osArgs, "--sidecar-default") {
 		cfg.SidecarDefault = SidecarAction(parsedArgs.SidecarDefault)

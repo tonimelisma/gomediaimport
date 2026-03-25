@@ -82,6 +82,19 @@ func importMedia(cfg config) error {
 
 	planDestinations(files, cfg)
 
+	if cfg.CheckDiskSpace {
+		var totalSize int64
+		for _, file := range files {
+			if file.Status == StatusUnnamable || file.Status == StatusPreExisting || file.Status == StatusSidecarDeleted {
+				continue
+			}
+			totalSize += file.Size
+		}
+		if err := checkDiskSpace(cfg.DestDir, totalSize); err != nil {
+			return err
+		}
+	}
+
 	if err := copyFiles(files, cfg); err != nil {
 		return fmt.Errorf("failed to copy files: %w", err)
 	}

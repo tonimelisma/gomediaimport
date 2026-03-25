@@ -379,3 +379,44 @@ func ejectDriveLinux(sourceDir string) error {
 	}
 	return nil
 }
+
+// availableDiskSpace returns the number of bytes available on the filesystem
+// containing the given path. The path does not need to exist; the nearest
+// existing ancestor directory is used.
+func availableDiskSpace(path string) (uint64, error) {
+	// Walk up to find an existing directory
+	dir := path
+	for {
+		info, err := os.Stat(dir)
+		if err == nil {
+			if !info.IsDir() {
+				dir = filepath.Dir(dir)
+			}
+			break
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			return 0, fmt.Errorf("no existing ancestor directory found for %s", path)
+		}
+		dir = parent
+	}
+	return availableDiskSpaceForDir(dir)
+}
+
+// checkDiskSpace verifies there is enough free space on the destination
+// filesystem for the given totalBytes. Returns nil if sufficient, or an error
+// describing the shortfall.
+func checkDiskSpace(destDir string, totalBytes int64) error {
+	if totalBytes <= 0 {
+		return nil
+	}
+	available, err := availableDiskSpace(destDir)
+	if err != nil {
+		return fmt.Errorf("unable to check disk space: %w", err)
+	}
+	if available < uint64(totalBytes) {
+		return fmt.Errorf("insufficient disk space on destination: %s available, %s needed",
+			humanReadableSize(int64(available)), humanReadableSize(totalBytes))
+	}
+	return nil
+}

@@ -41,7 +41,7 @@ To embed the version number, pass it via `-ldflags` as shown above. Without it, 
 gomediaimport [--source SOURCE] [--dest DEST] [--config CONFIG]
   [--organize-by-date] [--rename-by-date-time] [--checksum-duplicates]
   [-v] [--dry-run] [--skip-thumbnails] [--delete-originals]
-  [--auto-eject] [--sidecar-default ACTION]
+  [--auto-eject] [--check-disk-space] [--sidecar-default ACTION]
   [--workers N] [--version]
 
 gomediaimport watch [--install | --uninstall | --status]
@@ -59,6 +59,7 @@ gomediaimport watch [--install | --uninstall | --status]
 - `--skip-thumbnails`: Skip thumbnail directories in source data (e.g. video thumbnails)
 - `--delete-originals`: Delete original files after successful import
 - `--auto-eject`: Eject the source drive after a fully successful import (default: `false`). Uses `diskutil eject` on macOS, `udisksctl unmount` on Linux.
+- `--check-disk-space`: Check for sufficient free disk space on the destination before importing (default: `true`). Use `--check-disk-space=false` to disable.
 - `--sidecar-default ACTION`: Default action for sidecar file types: `ignore`, `copy`, or `delete` (default: `delete`)
 - `--workers N`: Number of concurrent copy workers (default: 4)
 - `--version`: Print version and exit

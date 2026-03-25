@@ -859,3 +859,63 @@ func TestSetFinalDestinationFilenameDuplicateInBatch(t *testing.T) {
 		t.Errorf("expected StatusPreExisting for duplicate in batch, got %v", files[1].Status)
 	}
 }
+
+func TestAvailableDiskSpace(t *testing.T) {
+	if runtime.GOOS != "darwin" && runtime.GOOS != "linux" {
+		t.Skip("availableDiskSpace only supported on macOS and Linux")
+	}
+
+	// Given a valid directory
+	tmpDir, err := os.MkdirTemp("", "availspace-test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	space, err := availableDiskSpace(tmpDir)
+	if err != nil {
+		t.Fatalf("availableDiskSpace failed for valid dir: %v", err)
+	}
+	if space == 0 {
+		t.Error("expected available space > 0 for root temp dir")
+	}
+
+	// Given a non-existent path within a valid directory
+	nonExistent := filepath.Join(tmpDir, "child_that_does_not_exist", "and_another")
+	spaceNonExistent, err := availableDiskSpace(nonExistent)
+	if err != nil {
+		t.Fatalf("availableDiskSpace failed for non-existent child: %v", err)
+	}
+	if spaceNonExistent == 0 {
+		t.Error("expected available space > 0 for non-existent path inside temp dir")
+	}
+}
+
+func TestCheckDiskSpace(t *testing.T) {
+	if runtime.GOOS != "darwin" && runtime.GOOS != "linux" {
+		t.Skip("checkDiskSpace only supported on macOS and Linux")
+	}
+
+	tmpDir, err := os.MkdirTemp("", "checkdiskspace-test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	// 0 bytes requirement is always met
+	if err := checkDiskSpace(tmpDir, 0); err != nil {
+		t.Errorf("expected no error for 0 bytes, got %v", err)
+	}
+
+	// A very small requirement is practically met
+	if err := checkDiskSpace(tmpDir, 10); err != nil {
+		t.Errorf("expected no error for 10 bytes, got %v", err)
+	}
+
+	// A huge requirement should result in insufficient disk space error
+	hugeSize := int64(1 << 62) // Unrealistic Exabyte size
+	err = checkDiskSpace(tmpDir, hugeSize)
+	if err == nil {
+		t.Error("expected insufficient disk space error for impossibly huge size requirement")
+	}
+}

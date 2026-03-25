@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -988,4 +989,38 @@ func TestProgressTracker(t *testing.T) {
 			t.Errorf("expected no output from finish() in non-TTY mode, got:\n%s", string(output))
 		}
 	})
+}
+
+func TestImportMediaCheckDiskSpace(t *testing.T) {
+	if runtime.GOOS != "darwin" && runtime.GOOS != "linux" {
+		t.Skip("checkDiskSpace only supported on macOS and Linux")
+	}
+
+	tmpDir, err := os.MkdirTemp("", "import-diskspace-test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	srcDir := filepath.Join(tmpDir, "src")
+	destDir := filepath.Join(tmpDir, "dest")
+	if err := os.MkdirAll(srcDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create a moderate file to trigger successful check disk space flow
+	content := []byte("content data for disk space check")
+	if err := os.WriteFile(filepath.Join(srcDir, "space_test.txt"), content, 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg := config{
+		SourceDir:      srcDir,
+		DestDir:        destDir,
+		CheckDiskSpace: true,
+	}
+
+	if err := importMedia(cfg); err != nil {
+		t.Fatalf("importMedia failed with CheckDiskSpace=true: %v", err)
+	}
 }

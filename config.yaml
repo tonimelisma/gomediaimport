@@ -40,6 +40,9 @@ delete_originals: false
 # Automatically eject source media after successful import
 auto_eject: false
 
+# Check for free disk space before importing
+check_disk_space: true
+
 # Default action for unknown sidecar file types: ignore, copy, or delete
 sidecar_default: delete
 

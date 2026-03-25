@@ -54,6 +54,10 @@ func TestSetDefaults(t *testing.T) {
 		t.Errorf("Expected ChecksumDuplicates to be false, got %v", cfg.ChecksumDuplicates)
 	}
 
+	if cfg.CheckDiskSpace != true {
+		t.Errorf("Expected CheckDiskSpace to be true, got %v", cfg.CheckDiskSpace)
+	}
+
 	if cfg.Workers != 0 {
 		t.Errorf("Expected Workers to be 0, got %d", cfg.Workers)
 	}
@@ -265,14 +269,14 @@ func TestRunNoSourceAnywhere(t *testing.T) {
 	}
 
 	// No positional arg, no source in config
-	err = run([]string{"cmd", "--config", configFile.Name()})
+	err = run([]string{"cmd", "--config", configFile.Name(), "--check-disk-space=false"})
 	if err == nil {
 		t.Error("run() should return error when source dir is not provided anywhere")
 	}
 }
 
 func TestRunInvalidSource(t *testing.T) {
-	err := run([]string{"cmd", "--source", "/non/existent/source/dir", "--config", emptyConfigFile(t)})
+	err := run([]string{"cmd", "--source", "/non/existent/source/dir", "--check-disk-space=false", "--config", emptyConfigFile(t)})
 	if err == nil {
 		t.Error("run() should return error for non-existent source directory")
 	}
@@ -347,6 +351,7 @@ func TestConfigMarshalUnmarshal(t *testing.T) {
 		OrganizeByDate:     true,
 		RenameByDateTime:   true,
 		ChecksumDuplicates: true,
+		CheckDiskSpace:     true,
 		SidecarDefault:     SidecarDelete,
 		Sidecars:           map[string]SidecarAction{"xmp": SidecarCopy},
 		Watch:              WatchConfig{Volumes: []string{}},
@@ -436,6 +441,55 @@ func TestAutoEjectConfiguration(t *testing.T) {
 		}
 		return tmpfile.Name()
 	}
+
+	t.Run("ParseFromConfigFile_CheckDiskSpaceFalse", func(t *testing.T) {
+		tmpFileName := createTempConfig(t, "check_disk_space: false")
+		defer os.Remove(tmpFileName)
+
+		cfg := &config{}
+		if err := setDefaults(cfg); err != nil {
+			t.Fatalf("setDefaults failed: %v", err)
+		}
+		cfg.ConfigFile = tmpFileName
+		if err := parseConfigFile(cfg); err != nil {
+			t.Fatalf("parseConfigFile failed: %v", err)
+		}
+		if cfg.CheckDiskSpace {
+			t.Errorf("Expected CheckDiskSpace to be false from config file, got true")
+		}
+	})
+
+	t.Run("CLIFalseOverConfigTrue_CheckDiskSpace", func(t *testing.T) {
+		tmpFileName := createTempConfig(t, "check_disk_space: true")
+		defer os.Remove(tmpFileName)
+
+		osArgs := []string{"cmd", "--source", "/tmp", "--check-disk-space=false"}
+
+		cfg := &config{}
+		if err := setDefaults(cfg); err != nil {
+			t.Fatalf("setDefaults failed: %v", err)
+		}
+		cfg.ConfigFile = tmpFileName
+		if err := parseConfigFile(cfg); err != nil {
+			t.Fatalf("parseConfigFile failed: %v", err)
+		}
+
+		// Parse CLI args to get the flag value
+		var parsedArgs cliArgs
+		p, err := arg.NewParser(arg.Config{}, &parsedArgs)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_ = p.Parse(osArgs[1:])
+
+		if wasFlagProvided(osArgs, "--check-disk-space") {
+			cfg.CheckDiskSpace = parsedArgs.CheckDiskSpace
+		}
+
+		if cfg.CheckDiskSpace {
+			t.Errorf("Expected CheckDiskSpace to be false (CLI override), got true")
+		}
+	})
 
 	t.Run("ParseFromConfigFile_True", func(t *testing.T) {
 		tmpFileName := createTempConfig(t, "auto_eject: true")
@@ -819,7 +873,7 @@ func TestRunQuietSuppressesOutput(t *testing.T) {
 	}
 	os.Stdout = w
 
-	runErr := run([]string{"cmd", "--source", tmpDir, "--dest", destDir, "--quiet", "--config", emptyConfigFile(t)})
+	runErr := run([]string{"cmd", "--source", tmpDir, "--dest", destDir, "--quiet", "--check-disk-space=false", "--config", emptyConfigFile(t)})
 
 	w.Close()
 	os.Stdout = oldStdout
