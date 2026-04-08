@@ -188,9 +188,9 @@ func extractVideoMetadata(filePath string, fileType FileType, fallbackTime time.
 	}
 	defer func() { _ = file.Close() }()
 
-	tags, result, err := videometa.DecodeAll(videometa.Options{
+	decoded, err := videometa.DecodeAll(videometa.Options{
 		R:       file,
-		Sources: videometa.QUICKTIME | videometa.CONFIG | videometa.MAKERNOTES | videometa.XML,
+		Sources: videometa.QUICKTIME | videometa.VENDOR | videometa.CONFIG,
 		Warnf: func(format string, args ...any) {
 			videoMetadata.Warnings = append(videoMetadata.Warnings, fmt.Sprintf(format, args...))
 		},
@@ -205,34 +205,34 @@ func extractVideoMetadata(filePath string, fileType FileType, fallbackTime time.
 		}, nil
 	}
 
-	videoMetadata.Width = result.VideoConfig.Width
-	videoMetadata.Height = result.VideoConfig.Height
-	videoMetadata.Duration = result.VideoConfig.Duration
-	videoMetadata.Rotation = result.VideoConfig.Rotation
-	videoMetadata.Codec = result.VideoConfig.Codec
+	videoMetadata.Width = decoded.VideoConfig.Width
+	videoMetadata.Height = decoded.VideoConfig.Height
+	videoMetadata.Duration = decoded.VideoConfig.Duration
+	videoMetadata.Rotation = decoded.VideoConfig.Rotation
+	videoMetadata.Codec = decoded.VideoConfig.Codec
 
-	if lat, lon, err := tags.GetLatLong(); err == nil {
+	if lat, lon, err := decoded.Tags.GetLatLong(); err == nil {
 		videoMetadata.GPSLatitude = &lat
 		videoMetadata.GPSLongitude = &lon
 	}
 
 	videoMetadata.Make = findFirstStringValue(
-		[]map[string]videometa.TagInfo{tags.QuickTime(), tags.MakerNotes(), tags.XML()},
+		[]videometa.SourceTags{decoded.Tags.QuickTime(), decoded.Tags.Vendor()},
 		"Make",
 	)
 	videoMetadata.Model = findFirstStringValue(
-		[]map[string]videometa.TagInfo{tags.QuickTime(), tags.MakerNotes(), tags.XML()},
+		[]videometa.SourceTags{decoded.Tags.QuickTime(), decoded.Tags.Vendor()},
 		"Model",
 	)
 
-	timestamp, err := tags.GetDateTime()
-	provenanceTimestamp, source, tag, namespace, found := resolveVideoTimestampProvenance(tags)
+	timestamp, err := decoded.Tags.GetDateTime()
+	provenanceTimestamp, source, tag, namespace, found := resolveVideoTimestampProvenance(decoded.Tags)
 	if err != nil && found {
 		timestamp = provenanceTimestamp
 		err = nil
 	}
 	if err != nil {
-		if len(tags.All()) == 0 && result.VideoConfig == (videometa.VideoConfig{}) {
+		if len(decoded.Tags.All()) == 0 && decoded.VideoConfig == (videometa.VideoConfig{}) {
 			videoMetadata.TimestampSource = videoTimestampSourceFallback
 			videoMetadata.TimestampFallbackReason = videoTimestampFallbackDecodeError
 			if len(videoMetadata.Warnings) == 0 {
@@ -268,7 +268,7 @@ func extractVideoMetadata(filePath string, fileType FileType, fallbackTime time.
 	}, nil
 }
 
-func findFirstStringValue(sourceTags []map[string]videometa.TagInfo, keys ...string) string {
+func findFirstStringValue(sourceTags []videometa.SourceTags, keys ...string) string {
 	for _, source := range sourceTags {
 		if tag, found := firstVideoTagInfo(source, keys...); found {
 			value := strings.TrimSpace(fmt.Sprint(tag.Value))
@@ -280,10 +280,11 @@ func findFirstStringValue(sourceTags []map[string]videometa.TagInfo, keys ...str
 	return ""
 }
 
-func firstVideoTagInfo(sourceTags map[string]videometa.TagInfo, keys ...string) (videometa.TagInfo, bool) {
+func firstVideoTagInfo(sourceTags videometa.SourceTags, keys ...string) (videometa.TagInfo, bool) {
 	for _, key := range keys {
-		if tag, ok := sourceTags[key]; ok {
-			return tag, true
+		matches := sourceTags.Find(key)
+		if len(matches) > 0 {
+			return matches[0], true
 		}
 	}
 	return videometa.TagInfo{}, false
@@ -292,7 +293,7 @@ func firstVideoTagInfo(sourceTags map[string]videometa.TagInfo, keys ...string) 
 func resolveVideoTimestampProvenance(tags videometa.Tags) (time.Time, string, string, string, bool) {
 	candidates := []struct {
 		sourceName string
-		sourceTags map[string]videometa.TagInfo
+		sourceTags videometa.SourceTags
 		keys       []string
 	}{
 		{
@@ -302,12 +303,7 @@ func resolveVideoTimestampProvenance(tags videometa.Tags) (time.Time, string, st
 		},
 		{
 			sourceName: videoTimestampSourceVendor,
-			sourceTags: tags.MakerNotes(),
-			keys:       []string{"CreationDate", "CreateDate", "ModifyDate", "DateTimeOriginal"},
-		},
-		{
-			sourceName: videoTimestampSourceVendor,
-			sourceTags: tags.XML(),
+			sourceTags: tags.Vendor(),
 			keys:       []string{"CreationDate", "CreateDate", "ModifyDate", "DateTimeOriginal"},
 		},
 	}

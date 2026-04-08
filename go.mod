@@ -7,7 +7,7 @@ require (
 	github.com/bep/imagemeta v0.17.0
 	github.com/cespare/xxhash/v2 v2.3.0
 	github.com/mattn/go-isatty v0.0.20
-	github.com/tonimelisma/videometa v0.1.0
+	github.com/tonimelisma/videometa v0.2.0
 	gopkg.in/yaml.v3 v3.0.1
 	howett.net/plist v1.0.1
 )

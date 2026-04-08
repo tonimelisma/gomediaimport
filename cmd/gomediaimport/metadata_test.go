@@ -154,7 +154,7 @@ func TestExtractVideoMetadataPreservesTimezoneGPSAndCamera(t *testing.T) {
 func TestResolveVideoTimestampProvenancePrefersQuickTime(t *testing.T) {
 	var tags videometa.Tags
 	tags.Add(videometa.TagInfo{
-		Source:    videometa.XML,
+		Source:    videometa.VENDOR,
 		Tag:       "CreationDate",
 		Namespace: "vendor/date",
 		Value:     "2025:01:02 03:04:05",
@@ -194,7 +194,7 @@ func TestResolveVideoTimestampProvenancePrefersQuickTime(t *testing.T) {
 func TestResolveVideoTimestampProvenanceUsesVendorDateTimeOriginal(t *testing.T) {
 	var tags videometa.Tags
 	tags.Add(videometa.TagInfo{
-		Source:    videometa.XML,
+		Source:    videometa.VENDOR,
 		Tag:       "DateTimeOriginal",
 		Namespace: "sony/nrtm",
 		Value:     "2024-06-15T10:30:00-07:00",
