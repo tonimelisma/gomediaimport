@@ -10,7 +10,7 @@ gomediaimport is a CLI tool that imports and organizes pictures and videos from 
 - Duplicate detection using file size, timestamps, and optional xxHash64 checksums
 - Optional file organization into date-based subdirectories (`YYYY/MM`)
 - Optional file renaming by creation date and time (`YYYYMMDD_HHMMSS`)
-- EXIF and video metadata extraction for accurate creation dates
+- Image EXIF/XMP and MP4/MOV-family video metadata extraction for accurate creation dates
 - Sidecar file handling (XMP, THM, CTG, etc.) with configurable actions
 - Dry-run mode for safe previewing
 - Idempotent: safe to re-run without duplicating files
@@ -26,7 +26,7 @@ Or clone and build locally:
 ```bash
 git clone https://github.com/tonimelisma/gomediaimport.git
 cd gomediaimport
-go install -ldflags "-X main.version=1.1.2" ./cmd/gomediaimport
+go install -ldflags "-X main.version=1.8.0" ./cmd/gomediaimport
 ```
 
 This installs gomediaimport into your `$GOPATH/bin` directory. Ensure it's in your PATH.
@@ -49,7 +49,7 @@ gomediaimport watch [--install | --uninstall | --status]
 
 - `--source SOURCE`: Source directory for media files (optional if set in config file)
 - `--dest DEST`: Destination directory for imported media (default: `~/Pictures`)
-- `--config CONFIG`: Path to config file (default: `~/.gomediaimportrc`)
+- `--config CONFIG`: Path to config file (default: platform config dir, e.g. `~/Library/Application Support/gomediaimport/config.yaml` on macOS)
 - `--organize-by-date`: Organize files into `YYYY/MM` subdirectories by creation date
 - `--rename-by-date-time`: Rename files to `YYYYMMDD_HHMMSS` format based on creation date
 - `--checksum-duplicates`: Use xxHash64 checksums for duplicate detection (slower but more accurate; otherwise uses file size and timestamp)
@@ -156,6 +156,8 @@ gomediaimport supports a wide range of media file types:
 - 3GP (.3gp), 3G2 (.3g2), ASF (.asf), VOB (.vob)
 - MTS (.mts, .m2ts)
 
+For embedded timestamps, gomediaimport uses `videometa` on `.mp4`, `.mov`, `.m4v`, `.3gp`, and `.3g2` files to read QuickTime-native metadata plus supported vendor metadata routes and container config. Other video containers still import normally, but creation time falls back to filesystem mtime when no supported embedded timestamp is available.
+
 ### Raw Videos
 - Various RAW video formats (.braw, .r3d, .ari)
 
@@ -174,7 +176,7 @@ File type support is defined in `media_types.go`. Pull requests for missing file
 
 1. **Configuration**: Loads settings from built-in defaults, then the YAML config file, then CLI arguments.
 
-2. **Enumeration**: Scans the source directory recursively, identifying media files by extension and extracting creation dates from EXIF/video metadata (falls back to file modification time).
+2. **Enumeration**: Scans the source directory recursively, identifying media files by extension and extracting creation dates from image EXIF/XMP or supported MP4/MOV-family video metadata (falls back to file modification time when no supported embedded timestamp is available).
 
 3. **Destination Planning**: Determines each file's destination path based on organization and renaming settings. Detects duplicates using an O(1) size+timestamp index, with optional checksum verification.
 

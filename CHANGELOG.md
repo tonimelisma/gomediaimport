@@ -1,5 +1,17 @@
 # Changelog
 
+## [v1.8.0] - 2026-04-08
+
+### Features
+- **`videometa`-backed video timestamps**: supported MP4/MOV-family containers (`.mp4`, `.mov`, `.m4v`, `.3gp`, `.3g2`) now use `github.com/tonimelisma/videometa` instead of the previous `mvhd`-only parser. This improves timestamp extraction by reading QuickTime-native metadata plus supported vendor metadata routes and preserves timezone-bearing timestamps.
+- **Richer internal video metadata**: enumeration now attaches normalized `VideoMetadata` to `FileInfo`, retaining timestamp provenance/fallback reason, codec/config, GPS, camera make/model, and non-fatal decode warnings for future diagnostics and features.
+
+### Behavior
+- **Compatibility-first fallback**: unsupported video containers and undecodable supported files still import normally and fall back to filesystem mtime rather than failing enumeration.
+
+### Testing
+- **Pinned real-file fixtures**: replaced synthetic `mvhd`-only metadata tests with fixture-backed `videometa` coverage for MP4, MOV, timezone-bearing GPS metadata, provenance precedence, and corrupt-file fallbacks.
+
 ## [v1.7.0] - 2026-03-24
 
 ### Features

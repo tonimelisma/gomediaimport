@@ -34,6 +34,7 @@ type FileInfo struct {
 	DestDir          string
 	SourceChecksum   string
 	CreationDateTime time.Time
+	VideoMetadata    *VideoMetadata
 	Size             int64
 	MediaCategory    MediaCategory
 	FileType         FileType

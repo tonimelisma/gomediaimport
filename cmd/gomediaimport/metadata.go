@@ -7,9 +7,44 @@ import (
 	"strings"
 	"time"
 
-	mp4 "github.com/abema/go-mp4"
 	"github.com/bep/imagemeta"
+	"github.com/tonimelisma/videometa"
 )
+
+const (
+	videoTimestampSourceQuickTime = "quicktime"
+	videoTimestampSourceVendor    = "vendor"
+	videoTimestampSourceFallback  = "fallback"
+
+	videoTimestampFallbackUnsupportedContainer = "unsupported_container"
+	videoTimestampFallbackDecodeError          = "decode_error"
+	videoTimestampFallbackNoDateTime           = "no_datetime"
+)
+
+// VideoMetadata stores the subset of decoded video metadata that is useful for
+// import behavior, diagnostics, and future metadata-driven features.
+type VideoMetadata struct {
+	ChosenTimestamp         time.Time
+	TimestampSource         string
+	TimestampTag            string
+	TimestampNamespace      string
+	TimestampFallbackReason string
+	Width                   int
+	Height                  int
+	Duration                time.Duration
+	Rotation                int
+	Codec                   string
+	GPSLatitude             *float64
+	GPSLongitude            *float64
+	Make                    string
+	Model                   string
+	Warnings                []string
+}
+
+type mediaMetadata struct {
+	CreationDateTime time.Time
+	VideoMetadata    *VideoMetadata
+}
 
 // resolveImageFormat maps a FileInfo to the bep/imagemeta ImageFormat.
 // Returns false if the format is not supported for EXIF extraction.
@@ -89,36 +124,36 @@ func extractImageDateTime(filePath string, format imagemeta.ImageFormat) (time.T
 	return t, nil
 }
 
-func extractCreationDateTimeFromMetadata(fileInfo FileInfo) (time.Time, error) {
+func extractMetadata(fileInfo FileInfo) (mediaMetadata, error) {
 	switch fileInfo.MediaCategory {
 	case Sidecar:
-		return time.Time{}, fmt.Errorf("sidecar files do not have embedded metadata")
+		return mediaMetadata{}, fmt.Errorf("sidecar files do not have embedded metadata")
 
 	case ProcessedPicture, RawPicture:
 		imgFormat, supported := resolveImageFormat(fileInfo)
 		if !supported {
-			return time.Time{}, fmt.Errorf("unsupported format for EXIF: %s", fileInfo.FileType)
+			return mediaMetadata{}, fmt.Errorf("unsupported format for EXIF: %s", fileInfo.FileType)
 		}
-		return extractImageDateTime(filepath.Join(fileInfo.SourceDir, fileInfo.SourceName), imgFormat)
+		t, err := extractImageDateTime(filepath.Join(fileInfo.SourceDir, fileInfo.SourceName), imgFormat)
+		if err != nil {
+			return mediaMetadata{}, err
+		}
+		return mediaMetadata{CreationDateTime: t}, nil
 
 	case Video:
 		filePath := filepath.Join(fileInfo.SourceDir, fileInfo.SourceName)
-		return extractVideoCreationTime(filePath, fileInfo.FileType)
+		return extractVideoMetadata(filePath, fileInfo.FileType, fileInfo.CreationDateTime)
 
 	case RawVideo:
-		return time.Time{}, fmt.Errorf("raw video formats do not use ISO BMFF containers")
+		return mediaMetadata{}, fmt.Errorf("raw video formats do not use ISO BMFF containers")
 
 	default:
-		return time.Time{}, fmt.Errorf("unsupported media category: %v", fileInfo.MediaCategory)
+		return mediaMetadata{}, fmt.Errorf("unsupported media category: %v", fileInfo.MediaCategory)
 	}
 }
 
-// appleEpochOffset is the number of seconds between the Apple/Mac epoch
-// (1904-01-01 00:00:00 UTC) and the Unix epoch (1970-01-01 00:00:00 UTC).
-const appleEpochOffset = 2082844800
-
 // isoBaseMediaFileTypes contains video FileTypes that use the ISO Base Media
-// File Format (ISO 14496-12) and store creation time in the mvhd box.
+// File Format (ISO 14496-12) and are decoded with videometa.
 var isoBaseMediaFileTypes = map[FileType]bool{
 	MP4:     true,
 	MOV:     true,
@@ -127,45 +162,211 @@ var isoBaseMediaFileTypes = map[FileType]bool{
 	THREEG2: true,
 }
 
-// extractVideoCreationTime reads the moov>mvhd box from an ISO BMFF container
-// and returns the creation time. For non-ISO-BMFF video types, it returns an error
-// so the caller falls back to filesystem mtime.
-func extractVideoCreationTime(filePath string, fileType FileType) (time.Time, error) {
+func extractVideoMetadata(filePath string, fileType FileType, fallbackTime time.Time) (mediaMetadata, error) {
+	videoMetadata := &VideoMetadata{
+		ChosenTimestamp: fallbackTime,
+	}
+
 	if !isoBaseMediaFileTypes[fileType] {
-		return time.Time{}, fmt.Errorf("file type %s is not an ISO BMFF container", fileType)
+		videoMetadata.TimestampSource = videoTimestampSourceFallback
+		videoMetadata.TimestampFallbackReason = videoTimestampFallbackUnsupportedContainer
+		return mediaMetadata{
+			CreationDateTime: fallbackTime,
+			VideoMetadata:    videoMetadata,
+		}, nil
 	}
 
 	file, err := os.Open(filePath)
 	if err != nil {
-		return time.Time{}, fmt.Errorf("error opening file: %v", err)
+		videoMetadata.TimestampSource = videoTimestampSourceFallback
+		videoMetadata.TimestampFallbackReason = videoTimestampFallbackDecodeError
+		videoMetadata.Warnings = append(videoMetadata.Warnings, fmt.Sprintf("error opening file: %v", err))
+		return mediaMetadata{
+			CreationDateTime: fallbackTime,
+			VideoMetadata:    videoMetadata,
+		}, nil
 	}
 	defer func() { _ = file.Close() }()
 
-	boxes, err := mp4.ExtractBoxesWithPayload(file, nil, []mp4.BoxPath{
-		{mp4.BoxTypeMoov(), mp4.BoxTypeMvhd()},
+	tags, result, err := videometa.DecodeAll(videometa.Options{
+		R:       file,
+		Sources: videometa.QUICKTIME | videometa.CONFIG | videometa.MAKERNOTES | videometa.XML,
+		Warnf: func(format string, args ...any) {
+			videoMetadata.Warnings = append(videoMetadata.Warnings, fmt.Sprintf(format, args...))
+		},
 	})
 	if err != nil {
-		return time.Time{}, fmt.Errorf("error reading MP4 structure: %v", err)
+		videoMetadata.TimestampSource = videoTimestampSourceFallback
+		videoMetadata.TimestampFallbackReason = videoTimestampFallbackDecodeError
+		videoMetadata.Warnings = append(videoMetadata.Warnings, fmt.Sprintf("videometa decode failed: %v", err))
+		return mediaMetadata{
+			CreationDateTime: fallbackTime,
+			VideoMetadata:    videoMetadata,
+		}, nil
 	}
 
-	for _, box := range boxes {
-		mvhd, ok := box.Payload.(*mp4.Mvhd)
-		if !ok {
+	videoMetadata.Width = result.VideoConfig.Width
+	videoMetadata.Height = result.VideoConfig.Height
+	videoMetadata.Duration = result.VideoConfig.Duration
+	videoMetadata.Rotation = result.VideoConfig.Rotation
+	videoMetadata.Codec = result.VideoConfig.Codec
+
+	if lat, lon, err := tags.GetLatLong(); err == nil {
+		videoMetadata.GPSLatitude = &lat
+		videoMetadata.GPSLongitude = &lon
+	}
+
+	videoMetadata.Make = findFirstStringValue(
+		[]map[string]videometa.TagInfo{tags.QuickTime(), tags.MakerNotes(), tags.XML()},
+		"Make",
+	)
+	videoMetadata.Model = findFirstStringValue(
+		[]map[string]videometa.TagInfo{tags.QuickTime(), tags.MakerNotes(), tags.XML()},
+		"Model",
+	)
+
+	timestamp, err := tags.GetDateTime()
+	provenanceTimestamp, source, tag, namespace, found := resolveVideoTimestampProvenance(tags)
+	if err != nil && found {
+		timestamp = provenanceTimestamp
+		err = nil
+	}
+	if err != nil {
+		if len(tags.All()) == 0 && result.VideoConfig == (videometa.VideoConfig{}) {
+			videoMetadata.TimestampSource = videoTimestampSourceFallback
+			videoMetadata.TimestampFallbackReason = videoTimestampFallbackDecodeError
+			if len(videoMetadata.Warnings) == 0 {
+				videoMetadata.Warnings = append(videoMetadata.Warnings, "videometa returned no tags or config for supported container")
+			}
+		} else {
+			videoMetadata.TimestampSource = videoTimestampSourceFallback
+			videoMetadata.TimestampFallbackReason = videoTimestampFallbackNoDateTime
+		}
+		return mediaMetadata{
+			CreationDateTime: fallbackTime,
+			VideoMetadata:    videoMetadata,
+		}, nil
+	}
+
+	if found && !provenanceTimestamp.Equal(timestamp) {
+		videoMetadata.Warnings = append(videoMetadata.Warnings, "timestamp provenance did not exactly match videometa selection; using videometa result")
+	}
+	if found {
+		videoMetadata.TimestampSource = source
+		videoMetadata.TimestampTag = tag
+		videoMetadata.TimestampNamespace = namespace
+		videoMetadata.TimestampFallbackReason = ""
+	} else {
+		videoMetadata.Warnings = append(videoMetadata.Warnings, "videometa returned a timestamp but provenance could not be resolved locally")
+	}
+
+	videoMetadata.ChosenTimestamp = timestamp
+
+	return mediaMetadata{
+		CreationDateTime: timestamp,
+		VideoMetadata:    videoMetadata,
+	}, nil
+}
+
+func findFirstStringValue(sourceTags []map[string]videometa.TagInfo, keys ...string) string {
+	for _, source := range sourceTags {
+		if tag, found := firstVideoTagInfo(source, keys...); found {
+			value := strings.TrimSpace(fmt.Sprint(tag.Value))
+			if value != "" && value != "<nil>" {
+				return value
+			}
+		}
+	}
+	return ""
+}
+
+func firstVideoTagInfo(sourceTags map[string]videometa.TagInfo, keys ...string) (videometa.TagInfo, bool) {
+	for _, key := range keys {
+		if tag, ok := sourceTags[key]; ok {
+			return tag, true
+		}
+	}
+	return videometa.TagInfo{}, false
+}
+
+func resolveVideoTimestampProvenance(tags videometa.Tags) (time.Time, string, string, string, bool) {
+	candidates := []struct {
+		sourceName string
+		sourceTags map[string]videometa.TagInfo
+		keys       []string
+	}{
+		{
+			sourceName: videoTimestampSourceQuickTime,
+			sourceTags: tags.QuickTime(),
+			keys:       []string{"CreationDate", "CreateDate", "ModifyDate"},
+		},
+		{
+			sourceName: videoTimestampSourceVendor,
+			sourceTags: tags.MakerNotes(),
+			keys:       []string{"CreationDate", "CreateDate", "ModifyDate", "DateTimeOriginal"},
+		},
+		{
+			sourceName: videoTimestampSourceVendor,
+			sourceTags: tags.XML(),
+			keys:       []string{"CreationDate", "CreateDate", "ModifyDate", "DateTimeOriginal"},
+		},
+	}
+
+	for _, candidate := range candidates {
+		tag, found := firstVideoTagInfo(candidate.sourceTags, candidate.keys...)
+		if !found {
 			continue
 		}
-
-		creationTime := mvhd.GetCreationTime()
-		if creationTime == 0 {
-			return time.Time{}, fmt.Errorf("mvhd creation time is zero")
+		t, err := parseVideoMetadataTimeValue(tag.Value)
+		if err == nil {
+			return t, candidate.sourceName, tag.Tag, tag.Namespace, true
 		}
-
-		t := time.Unix(int64(creationTime)-appleEpochOffset, 0)
-		if t.Year() < 1970 {
-			return time.Time{}, fmt.Errorf("mvhd creation time predates Unix epoch")
-		}
-
-		return t, nil
 	}
 
-	return time.Time{}, fmt.Errorf("mvhd box not found in %s", filePath)
+	return time.Time{}, "", "", "", false
+}
+
+func parseVideoMetadataTimeValue(v any) (time.Time, error) {
+	switch t := v.(type) {
+	case time.Time:
+		if t.IsZero() {
+			return time.Time{}, fmt.Errorf("zero time")
+		}
+		return t, nil
+	case string:
+		return parseVideoMetadataTimeString(t)
+	default:
+		return time.Time{}, fmt.Errorf("unsupported type %T for date/time", v)
+	}
+}
+
+func parseVideoMetadataTimeString(s string) (time.Time, error) {
+	s = strings.TrimSpace(s)
+	if s == "" || s == "0000:00:00 00:00:00" {
+		return time.Time{}, fmt.Errorf("empty or zero date")
+	}
+
+	formats := []string{
+		"2006:01:02 15:04:05",
+		"2006:01:02 15:04:05-07:00",
+		"2006:01:02 15:04:05Z07:00",
+		"2006-01-02T15:04:05-07:00",
+		"2006-01-02T15:04:05Z07:00",
+		"2006-01-02T15:04:05-0700",
+		"2006-01-02T15:04:05Z",
+		"2006-01-02T15:04:05",
+		"2006-01-02 15:04:05",
+		"2006:01:02",
+		"2006-01-02",
+		time.RFC3339,
+		time.RFC3339Nano,
+	}
+
+	for _, format := range formats {
+		if t, err := time.Parse(format, s); err == nil {
+			return t, nil
+		}
+	}
+
+	return time.Time{}, fmt.Errorf("unrecognized date format: %q", s)
 }

@@ -1,150 +1,329 @@
 package main
 
 import (
-	"encoding/binary"
+	"math"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
+
+	"github.com/tonimelisma/videometa"
 )
 
-// buildMinimalMP4 creates a minimal MP4 file containing only a moov box with
-// an mvhd box inside. The mvhd box is version 0 (32-bit fields).
-// creationTime is in Apple epoch (seconds since 1904-01-01).
-func buildMinimalMP4(t *testing.T, dir string, creationTime uint32) string {
+func testFixturePath(name string) string {
+	return filepath.Join("testdata", name)
+}
+
+func copyFixtureToTempDir(t *testing.T, dir, srcName, destName string) string {
 	t.Helper()
 
-	// mvhd box (version 0): 108 bytes total
-	// 4 bytes size + 4 bytes type + 1 version + 3 flags + 4 creation + 4 modification
-	// + 4 timescale + 4 duration + 4 rate + 2 volume + 2 reserved + 8 reserved2
-	// + 36 matrix + 24 predefined + 4 next_track_id = 108
-	mvhdSize := uint32(108)
-	mvhd := make([]byte, mvhdSize)
-	binary.BigEndian.PutUint32(mvhd[0:4], mvhdSize)
-	copy(mvhd[4:8], "mvhd")
-	// version=0, flags=0 (bytes 8-11 are zero)
-	binary.BigEndian.PutUint32(mvhd[12:16], creationTime) // creation_time
-	binary.BigEndian.PutUint32(mvhd[16:20], creationTime) // modification_time
-	binary.BigEndian.PutUint32(mvhd[20:24], 1000)         // timescale
-	binary.BigEndian.PutUint32(mvhd[24:28], 0)            // duration
-	binary.BigEndian.PutUint32(mvhd[28:32], 0x00010000)   // rate = 1.0 (fixed 16.16)
-	binary.BigEndian.PutUint16(mvhd[32:34], 0x0100)       // volume = 1.0 (fixed 8.8)
-	// bytes 34-42: reserved (zeros)
-	// matrix: identity matrix in fixed-point 16.16
-	// [0x00010000, 0, 0, 0, 0x00010000, 0, 0, 0, 0x40000000]
-	binary.BigEndian.PutUint32(mvhd[42:46], 0x00010000)
-	binary.BigEndian.PutUint32(mvhd[58:62], 0x00010000)
-	binary.BigEndian.PutUint32(mvhd[74:78], 0x40000000)
-	// pre_defined: 24 bytes of zeros (78-102)
-	binary.BigEndian.PutUint32(mvhd[102:106], 1) // next_track_id
-
-	// moov box wrapping mvhd
-	moovSize := uint32(8 + mvhdSize)
-	moov := make([]byte, 8)
-	binary.BigEndian.PutUint32(moov[0:4], moovSize)
-	copy(moov[4:8], "moov")
-
-	// ftyp box (minimal, required for valid MP4)
-	ftyp := make([]byte, 20)
-	binary.BigEndian.PutUint32(ftyp[0:4], 20)
-	copy(ftyp[4:8], "ftyp")
-	copy(ftyp[8:12], "isom")
-	binary.BigEndian.PutUint32(ftyp[12:16], 0x200) // minor version
-	copy(ftyp[16:20], "isom")
-
-	filePath := filepath.Join(dir, "test.mp4")
-	f, err := os.Create(filePath)
+	data, err := os.ReadFile(testFixturePath(srcName))
 	if err != nil {
-		t.Fatal(err)
-	}
-	defer f.Close()
-
-	if _, err := f.Write(ftyp); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := f.Write(moov); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := f.Write(mvhd); err != nil {
-		t.Fatal(err)
+		t.Fatalf("failed to read fixture %s: %v", srcName, err)
 	}
 
-	return filePath
+	destPath := filepath.Join(dir, destName)
+	if err := os.WriteFile(destPath, data, 0644); err != nil {
+		t.Fatalf("failed to write fixture %s: %v", destName, err)
+	}
+
+	return destPath
 }
 
-func TestExtractVideoCreationTime_ValidMP4(t *testing.T) {
-	dir := t.TempDir()
+func requireVideoMetadata(t *testing.T, metadata mediaMetadata) *VideoMetadata {
+	t.Helper()
+	if metadata.VideoMetadata == nil {
+		t.Fatal("expected video metadata, got nil")
+	}
+	return metadata.VideoMetadata
+}
 
-	// 2024-06-15 12:30:00 UTC in Apple epoch
-	// Unix timestamp: 1718451000
-	// Apple epoch: 1718451000 + 2082844800 = 3801295800
-	wantTime := time.Date(2024, 6, 15, 12, 30, 0, 0, time.UTC)
-	appleTime := uint32(wantTime.Unix() + appleEpochOffset)
+func TestExtractVideoMetadataMP4Fixture(t *testing.T) {
+	fallbackTime := time.Date(2001, 2, 3, 4, 5, 6, 0, time.UTC)
 
-	filePath := buildMinimalMP4(t, dir, appleTime)
-
-	got, err := extractVideoCreationTime(filePath, MP4)
+	metadata, err := extractVideoMetadata(testFixturePath("minimal.mp4"), MP4, fallbackTime)
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf("extractVideoMetadata returned error: %v", err)
 	}
-	if !got.Equal(wantTime) {
-		t.Errorf("got %v, want %v", got, wantTime)
+
+	vm := requireVideoMetadata(t, metadata)
+	wantTime := time.Date(2024, 6, 15, 10, 30, 0, 0, time.UTC)
+
+	if !metadata.CreationDateTime.Equal(wantTime) {
+		t.Fatalf("got creation time %v, want %v", metadata.CreationDateTime, wantTime)
+	}
+	if !vm.ChosenTimestamp.Equal(wantTime) {
+		t.Fatalf("got chosen timestamp %v, want %v", vm.ChosenTimestamp, wantTime)
+	}
+	if vm.TimestampSource != videoTimestampSourceQuickTime {
+		t.Fatalf("got timestamp source %q, want %q", vm.TimestampSource, videoTimestampSourceQuickTime)
+	}
+	if vm.TimestampTag != "CreateDate" {
+		t.Fatalf("got timestamp tag %q, want CreateDate", vm.TimestampTag)
+	}
+	if vm.TimestampNamespace == "" {
+		t.Fatal("expected timestamp namespace to be populated")
+	}
+	if vm.TimestampFallbackReason != "" {
+		t.Fatalf("expected no fallback reason, got %q", vm.TimestampFallbackReason)
+	}
+	if vm.Width != 320 || vm.Height != 240 {
+		t.Fatalf("got dimensions %dx%d, want 320x240", vm.Width, vm.Height)
+	}
+	if vm.Duration != time.Second {
+		t.Fatalf("got duration %v, want %v", vm.Duration, time.Second)
+	}
+	if vm.Rotation != 0 {
+		t.Fatalf("got rotation %d, want 0", vm.Rotation)
+	}
+	if vm.Codec != "avc1" {
+		t.Fatalf("got codec %q, want avc1", vm.Codec)
+	}
+	if vm.GPSLatitude != nil || vm.GPSLongitude != nil {
+		t.Fatal("expected no GPS coordinates on minimal fixture")
+	}
+	if vm.Make != "" || vm.Model != "" {
+		t.Fatalf("expected empty make/model, got %q/%q", vm.Make, vm.Model)
 	}
 }
 
-func TestExtractVideoCreationTime_ZeroCreationTime(t *testing.T) {
+func TestExtractVideoMetadataMOVFixture(t *testing.T) {
+	fallbackTime := time.Date(2001, 2, 3, 4, 5, 6, 0, time.UTC)
+
+	metadata, err := extractVideoMetadata(testFixturePath("exiftool_quicktime.mov"), MOV, fallbackTime)
+	if err != nil {
+		t.Fatalf("extractVideoMetadata returned error: %v", err)
+	}
+
+	vm := requireVideoMetadata(t, metadata)
+	wantTime := time.Date(2005, 8, 11, 14, 3, 54, 0, time.UTC)
+
+	if !metadata.CreationDateTime.Equal(wantTime) {
+		t.Fatalf("got creation time %v, want %v", metadata.CreationDateTime, wantTime)
+	}
+	if vm.TimestampSource != videoTimestampSourceQuickTime {
+		t.Fatalf("got timestamp source %q, want %q", vm.TimestampSource, videoTimestampSourceQuickTime)
+	}
+	if vm.TimestampTag != "CreateDate" {
+		t.Fatalf("got timestamp tag %q, want CreateDate", vm.TimestampTag)
+	}
+	if vm.Width != 320 || vm.Height != 240 {
+		t.Fatalf("got dimensions %dx%d, want 320x240", vm.Width, vm.Height)
+	}
+	if vm.Duration <= 0 {
+		t.Fatalf("expected positive duration, got %v", vm.Duration)
+	}
+	if vm.Codec == "" {
+		t.Fatal("expected codec to be populated")
+	}
+}
+
+func TestExtractVideoMetadataPreservesTimezoneGPSAndCamera(t *testing.T) {
+	fallbackTime := time.Date(2001, 2, 3, 4, 5, 6, 0, time.UTC)
+
+	metadata, err := extractVideoMetadata(testFixturePath("with_gps.mp4"), MP4, fallbackTime)
+	if err != nil {
+		t.Fatalf("extractVideoMetadata returned error: %v", err)
+	}
+
+	vm := requireVideoMetadata(t, metadata)
+
+	if got := metadata.CreationDateTime.Format("2006-01-02T15:04:05-07:00"); got != "2024-06-15T10:30:00-07:00" {
+		t.Fatalf("got timestamp %q, want %q", got, "2024-06-15T10:30:00-07:00")
+	}
+	if vm.TimestampSource != videoTimestampSourceQuickTime {
+		t.Fatalf("got timestamp source %q, want %q", vm.TimestampSource, videoTimestampSourceQuickTime)
+	}
+	if vm.TimestampTag != "CreationDate" {
+		t.Fatalf("got timestamp tag %q, want CreationDate", vm.TimestampTag)
+	}
+	if vm.GPSLatitude == nil || vm.GPSLongitude == nil {
+		t.Fatal("expected GPS coordinates to be populated")
+	}
+	if math.Abs(*vm.GPSLatitude-34.0592) > 1e-6 {
+		t.Fatalf("got latitude %v, want 34.0592", *vm.GPSLatitude)
+	}
+	if math.Abs(*vm.GPSLongitude-(-118.446)) > 1e-6 {
+		t.Fatalf("got longitude %v, want -118.446", *vm.GPSLongitude)
+	}
+	if vm.Make != "TestCamera" || vm.Model != "TestModel" {
+		t.Fatalf("got make/model %q/%q, want TestCamera/TestModel", vm.Make, vm.Model)
+	}
+}
+
+func TestResolveVideoTimestampProvenancePrefersQuickTime(t *testing.T) {
+	var tags videometa.Tags
+	tags.Add(videometa.TagInfo{
+		Source:    videometa.XML,
+		Tag:       "CreationDate",
+		Namespace: "vendor/date",
+		Value:     "2025:01:02 03:04:05",
+	})
+	tags.Add(videometa.TagInfo{
+		Source:    videometa.QUICKTIME,
+		Tag:       "CreateDate",
+		Namespace: "moov/mvhd",
+		Value:     "2024:01:02 03:04:05",
+	})
+
+	gotTime, source, tag, namespace, found := resolveVideoTimestampProvenance(tags)
+	if !found {
+		t.Fatal("expected provenance to be found")
+	}
+
+	wantTime := time.Date(2024, 1, 2, 3, 4, 5, 0, time.UTC)
+	if !gotTime.Equal(wantTime) {
+		t.Fatalf("got time %v, want %v", gotTime, wantTime)
+	}
+	if source != videoTimestampSourceQuickTime {
+		t.Fatalf("got source %q, want %q", source, videoTimestampSourceQuickTime)
+	}
+	if tag != "CreateDate" || namespace != "moov/mvhd" {
+		t.Fatalf("got tag/namespace %q/%q, want CreateDate/moov/mvhd", tag, namespace)
+	}
+
+	gotFromLibrary, err := tags.GetDateTime()
+	if err != nil {
+		t.Fatalf("Tags.GetDateTime returned error: %v", err)
+	}
+	if !gotFromLibrary.Equal(wantTime) {
+		t.Fatalf("Tags.GetDateTime got %v, want %v", gotFromLibrary, wantTime)
+	}
+}
+
+func TestResolveVideoTimestampProvenanceUsesVendorDateTimeOriginal(t *testing.T) {
+	var tags videometa.Tags
+	tags.Add(videometa.TagInfo{
+		Source:    videometa.XML,
+		Tag:       "DateTimeOriginal",
+		Namespace: "sony/nrtm",
+		Value:     "2024-06-15T10:30:00-07:00",
+	})
+
+	gotTime, source, tag, namespace, found := resolveVideoTimestampProvenance(tags)
+	if !found {
+		t.Fatal("expected provenance to be found")
+	}
+	if got := gotTime.Format("2006-01-02T15:04:05-07:00"); got != "2024-06-15T10:30:00-07:00" {
+		t.Fatalf("got time %q, want %q", got, "2024-06-15T10:30:00-07:00")
+	}
+	if source != videoTimestampSourceVendor {
+		t.Fatalf("got source %q, want %q", source, videoTimestampSourceVendor)
+	}
+	if tag != "DateTimeOriginal" || namespace != "sony/nrtm" {
+		t.Fatalf("got tag/namespace %q/%q, want DateTimeOriginal/sony/nrtm", tag, namespace)
+	}
+}
+
+func TestExtractVideoMetadataUnsupportedContainerFallsBack(t *testing.T) {
+	fallbackTime := time.Date(2001, 2, 3, 4, 5, 6, 0, time.UTC)
+
+	metadata, err := extractVideoMetadata("/does/not/matter.avi", AVI, fallbackTime)
+	if err != nil {
+		t.Fatalf("extractVideoMetadata returned error: %v", err)
+	}
+
+	vm := requireVideoMetadata(t, metadata)
+	if !metadata.CreationDateTime.Equal(fallbackTime) {
+		t.Fatalf("got creation time %v, want fallback %v", metadata.CreationDateTime, fallbackTime)
+	}
+	if !vm.ChosenTimestamp.Equal(fallbackTime) {
+		t.Fatalf("got chosen timestamp %v, want fallback %v", vm.ChosenTimestamp, fallbackTime)
+	}
+	if vm.TimestampSource != videoTimestampSourceFallback {
+		t.Fatalf("got timestamp source %q, want %q", vm.TimestampSource, videoTimestampSourceFallback)
+	}
+	if vm.TimestampFallbackReason != videoTimestampFallbackUnsupportedContainer {
+		t.Fatalf("got fallback reason %q, want %q", vm.TimestampFallbackReason, videoTimestampFallbackUnsupportedContainer)
+	}
+}
+
+func TestExtractVideoMetadataCorruptSupportedFileFallsBack(t *testing.T) {
 	dir := t.TempDir()
-	filePath := buildMinimalMP4(t, dir, 0)
+	filePath := filepath.Join(dir, "corrupt.mp4")
+	if err := os.WriteFile(filePath, []byte("not a valid mp4"), 0644); err != nil {
+		t.Fatalf("failed to write corrupt file: %v", err)
+	}
 
-	_, err := extractVideoCreationTime(filePath, MP4)
-	if err == nil {
-		t.Fatal("expected error for zero creation time, got nil")
+	fallbackTime := time.Date(2001, 2, 3, 4, 5, 6, 0, time.UTC)
+	metadata, err := extractVideoMetadata(filePath, MP4, fallbackTime)
+	if err != nil {
+		t.Fatalf("extractVideoMetadata returned error: %v", err)
+	}
+
+	vm := requireVideoMetadata(t, metadata)
+	if !metadata.CreationDateTime.Equal(fallbackTime) {
+		t.Fatalf("got creation time %v, want fallback %v", metadata.CreationDateTime, fallbackTime)
+	}
+	if vm.TimestampSource != videoTimestampSourceFallback {
+		t.Fatalf("got timestamp source %q, want %q", vm.TimestampSource, videoTimestampSourceFallback)
+	}
+	if vm.TimestampFallbackReason != videoTimestampFallbackDecodeError {
+		t.Fatalf("got fallback reason %q, want %q", vm.TimestampFallbackReason, videoTimestampFallbackDecodeError)
+	}
+	if len(vm.Warnings) == 0 {
+		t.Fatal("expected decode warning to be captured")
 	}
 }
 
-func TestExtractVideoCreationTime_NonISOBMFF(t *testing.T) {
-	_, err := extractVideoCreationTime("/nonexistent.avi", AVI)
-	if err == nil {
-		t.Fatal("expected error for non-ISO-BMFF file type, got nil")
-	}
-}
-
-func TestExtractVideoCreationTime_RawVideoType(t *testing.T) {
+func TestExtractMetadataRawVideoType(t *testing.T) {
 	fi := FileInfo{
 		SourceDir:     "/tmp",
 		SourceName:    "test.braw",
 		MediaCategory: RawVideo,
 		FileType:      RAWVIDEO,
 	}
-	_, err := extractCreationDateTimeFromMetadata(fi)
+
+	_, err := extractMetadata(fi)
 	if err == nil {
 		t.Fatal("expected error for raw video, got nil")
 	}
 }
 
-func TestExtractVideoCreationTime_MOVFileType(t *testing.T) {
-	dir := t.TempDir()
+func TestEnumerateFilesAttachesVideoMetadata(t *testing.T) {
+	tempDir := t.TempDir()
 
-	wantTime := time.Date(2023, 3, 10, 8, 0, 0, 0, time.UTC)
-	appleTime := uint32(wantTime.Unix() + appleEpochOffset)
-
-	filePath := buildMinimalMP4(t, dir, appleTime)
-	// Rename to .mov — same container format
-	movPath := filepath.Join(dir, "test.mov")
-	if err := os.Rename(filePath, movPath); err != nil {
-		t.Fatal(err)
+	copyFixtureToTempDir(t, tempDir, "with_gps.mp4", "clip.mp4")
+	if err := os.WriteFile(filepath.Join(tempDir, "clip.thm"), []byte("thm"), 0644); err != nil {
+		t.Fatalf("failed to write sidecar: %v", err)
 	}
 
-	got, err := extractVideoCreationTime(movPath, MOV)
+	files, err := enumerateFiles(tempDir, config{SidecarDefault: SidecarDelete})
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf("enumerateFiles failed: %v", err)
 	}
-	if !got.Equal(wantTime) {
-		t.Errorf("got %v, want %v", got, wantTime)
+
+	var videoFound, sidecarFound bool
+	for _, file := range files {
+		switch file.SourceName {
+		case "clip.mp4":
+			videoFound = true
+			if file.VideoMetadata == nil {
+				t.Fatal("expected video metadata to be attached to clip.mp4")
+			}
+			if file.VideoMetadata.Make != "TestCamera" || file.VideoMetadata.Model != "TestModel" {
+				t.Fatalf("got make/model %q/%q, want TestCamera/TestModel", file.VideoMetadata.Make, file.VideoMetadata.Model)
+			}
+		case "clip.thm":
+			sidecarFound = true
+			if file.MediaCategory != Sidecar {
+				t.Fatalf("expected clip.thm to be a sidecar, got %v", file.MediaCategory)
+			}
+			if file.VideoMetadata != nil {
+				t.Fatal("expected no video metadata on sidecar file")
+			}
+		}
+	}
+
+	if !videoFound {
+		t.Fatal("expected clip.mp4 to be enumerated")
+	}
+	if !sidecarFound {
+		t.Fatal("expected clip.thm to be enumerated as a sidecar")
 	}
 }
 
-func TestSidecarDefaults_MPLAndCPI(t *testing.T) {
+func TestSidecarDefaultsMPLAndCPI(t *testing.T) {
 	for _, ext := range []string{"mpl", "cpi"} {
 		if !isSidecarExtension(ext) {
 			t.Errorf("%s should be a recognized sidecar extension", ext)

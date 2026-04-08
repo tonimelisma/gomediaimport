@@ -96,9 +96,10 @@ func enumerateFiles(sourceDir string, cfg config) ([]FileInfo, error) {
 		fileInfo.FileType = fileType
 
 		// Extract creation date and time from metadata
-		extractedDateTime, err := extractCreationDateTimeFromMetadata(fileInfo)
+		extractedMetadata, err := extractMetadata(fileInfo)
 		if err == nil {
-			fileInfo.CreationDateTime = extractedDateTime
+			fileInfo.CreationDateTime = extractedMetadata.CreationDateTime
+			fileInfo.VideoMetadata = extractedMetadata.VideoMetadata
 		}
 
 		files = append(files, fileInfo)

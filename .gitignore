@@ -31,3 +31,9 @@ dist/
 
 # Built binary
 gomediaimport
+
+# Commit small package-local video fixtures used by metadata tests.
+!cmd/gomediaimport/
+!cmd/gomediaimport/testdata/
+!cmd/gomediaimport/testdata/*.mp4
+!cmd/gomediaimport/testdata/*.mov
