@@ -4,7 +4,7 @@ go 1.25.0
 
 require (
 	github.com/alexflint/go-arg v1.6.1
-	github.com/bep/imagemeta v0.17.0
+	github.com/bep/imagemeta v0.17.1
 	github.com/cespare/xxhash/v2 v2.3.0
 	github.com/mattn/go-isatty v0.0.20
 	github.com/tonimelisma/videometa v0.2.0
