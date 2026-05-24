@@ -1,9 +1,11 @@
 package main
 
 import (
+	"io"
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/alexflint/go-arg"
@@ -50,8 +52,8 @@ func TestSetDefaults(t *testing.T) {
 		t.Errorf("Expected RenameByDateTime to be false, got %v", cfg.RenameByDateTime)
 	}
 
-	if cfg.ChecksumDuplicates != false {
-		t.Errorf("Expected ChecksumDuplicates to be false, got %v", cfg.ChecksumDuplicates)
+	if cfg.ChecksumDuplicates != true {
+		t.Errorf("Expected ChecksumDuplicates to be true, got %v", cfg.ChecksumDuplicates)
 	}
 
 	if cfg.CheckDiskSpace != true {
@@ -223,6 +225,69 @@ func TestRun(t *testing.T) {
 	// Test that run() completes without error
 	if err := run([]string{"cmd", "--source", tmpDir, "--config", emptyConfigFile(t)}); err != nil {
 		t.Errorf("run() returned error: %v", err)
+	}
+}
+
+func TestRunHelpShowsDefaultConfigFile(t *testing.T) {
+	output, err := captureStdout(t, func() error {
+		return run([]string{"cmd", "--help"})
+	})
+	if err != nil && err != errExitClean {
+		t.Fatalf("run(--help) returned unexpected error: %v", err)
+	}
+
+	assertHelpShowsDefaultConfigFile(t, output)
+}
+
+func TestRunWatchHelpShowsDefaultConfigFile(t *testing.T) {
+	output, err := captureStdout(t, func() error {
+		return run([]string{"cmd", "watch", "--help"})
+	})
+	if err != nil && err != errExitClean {
+		t.Fatalf("run(watch --help) returned unexpected error: %v", err)
+	}
+
+	assertHelpShowsDefaultConfigFile(t, output)
+}
+
+func captureStdout(t *testing.T, fn func() error) (string, error) {
+	t.Helper()
+
+	oldStdout := os.Stdout
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	os.Stdout = w
+
+	fnErr := fn()
+
+	if err := w.Close(); err != nil {
+		t.Fatal(err)
+	}
+	os.Stdout = oldStdout
+
+	output, err := io.ReadAll(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(output), fnErr
+}
+
+func assertHelpShowsDefaultConfigFile(t *testing.T, output string) {
+	t.Helper()
+
+	cfg := config{}
+	if err := setDefaults(&cfg); err != nil {
+		t.Fatal(err)
+	}
+
+	if !strings.Contains(output, "Defaults:") {
+		t.Fatalf("expected help to include Defaults footer, got:\n%s", output)
+	}
+	want := "Config file: " + cfg.ConfigFile
+	if !strings.Contains(output, want) {
+		t.Fatalf("expected help to include %q, got:\n%s", want, output)
 	}
 }
 
@@ -421,6 +486,125 @@ func TestWasFlagProvided(t *testing.T) {
 	if wasFlagProvided(osArgs, "--dry-run") {
 		t.Error("expected --dry-run to NOT be detected")
 	}
+}
+
+func TestChecksumDuplicateConfiguration(t *testing.T) {
+	createTempConfig := func(t *testing.T, content string) string {
+		t.Helper()
+		tmpfile, err := os.CreateTemp("", "config-checksum-*.yaml")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := tmpfile.Write([]byte(content)); err != nil {
+			tmpfile.Close()
+			os.Remove(tmpfile.Name())
+			t.Fatal(err)
+		}
+		if err := tmpfile.Close(); err != nil {
+			os.Remove(tmpfile.Name())
+			t.Fatal(err)
+		}
+		return tmpfile.Name()
+	}
+
+	t.Run("DefaultTrue", func(t *testing.T) {
+		cfg := &config{}
+		if err := setDefaults(cfg); err != nil {
+			t.Fatal(err)
+		}
+		if !cfg.ChecksumDuplicates {
+			t.Error("expected checksum duplicate verification to default to true")
+		}
+	})
+
+	t.Run("ConfigFalse", func(t *testing.T) {
+		tmpFileName := createTempConfig(t, "checksum_duplicates: false")
+		defer os.Remove(tmpFileName)
+
+		cfg := &config{}
+		if err := setDefaults(cfg); err != nil {
+			t.Fatal(err)
+		}
+		cfg.ConfigFile = tmpFileName
+		if err := parseConfigFile(cfg); err != nil {
+			t.Fatal(err)
+		}
+		if cfg.ChecksumDuplicates {
+			t.Error("expected checksum_duplicates: false to disable checksum duplicate verification")
+		}
+	})
+
+	t.Run("CLINoChecksumOverConfigTrue", func(t *testing.T) {
+		tmpFileName := createTempConfig(t, "checksum_duplicates: true")
+		defer os.Remove(tmpFileName)
+
+		osArgs := []string{"cmd", "--config", tmpFileName, "--no-checksum-duplicates"}
+		cfg := &config{}
+		if err := setDefaults(cfg); err != nil {
+			t.Fatal(err)
+		}
+
+		var parsedArgs cliArgs
+		p, err := arg.NewParser(arg.Config{}, &parsedArgs)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := p.Parse(osArgs[1:]); err != nil {
+			t.Fatal(err)
+		}
+
+		cfg.ConfigFile = parsedArgs.ConfigFile
+		if err := parseConfigFile(cfg); err != nil {
+			t.Fatal(err)
+		}
+		if wasFlagProvided(osArgs, "--no-checksum-duplicates") {
+			cfg.ChecksumDuplicates = false
+		}
+		if cfg.ChecksumDuplicates {
+			t.Error("expected --no-checksum-duplicates to disable checksum duplicate verification")
+		}
+	})
+
+	t.Run("CLIEnableOverConfigFalse", func(t *testing.T) {
+		tmpFileName := createTempConfig(t, "checksum_duplicates: false")
+		defer os.Remove(tmpFileName)
+
+		osArgs := []string{"cmd", "--config", tmpFileName, "--checksum-duplicates"}
+		cfg := &config{}
+		if err := setDefaults(cfg); err != nil {
+			t.Fatal(err)
+		}
+
+		var parsedArgs cliArgs
+		p, err := arg.NewParser(arg.Config{}, &parsedArgs)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := p.Parse(osArgs[1:]); err != nil {
+			t.Fatal(err)
+		}
+
+		cfg.ConfigFile = parsedArgs.ConfigFile
+		if err := parseConfigFile(cfg); err != nil {
+			t.Fatal(err)
+		}
+		if wasFlagProvided(osArgs, "--checksum-duplicates") {
+			cfg.ChecksumDuplicates = parsedArgs.ChecksumDuplicates
+		}
+		if !cfg.ChecksumDuplicates {
+			t.Error("expected --checksum-duplicates to enable checksum duplicate verification")
+		}
+	})
+
+	t.Run("ConflictingCLIFlags", func(t *testing.T) {
+		err := run([]string{"cmd", "--checksum-duplicates", "--no-checksum-duplicates"})
+		if err == nil {
+			t.Fatal("expected conflicting checksum flags to return an error")
+		}
+		if !strings.Contains(err.Error(), "cannot be used together") {
+			t.Fatalf("expected conflict error, got %v", err)
+		}
+	})
 }
 
 func TestAutoEjectConfiguration(t *testing.T) {

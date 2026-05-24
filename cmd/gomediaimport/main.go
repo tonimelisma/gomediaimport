@@ -24,22 +24,23 @@ type watchArgs struct {
 
 // cliArgs holds the command-line arguments
 type cliArgs struct {
-	Watch              *watchArgs `arg:"subcommand:watch" help:"Auto-import media when SD cards are mounted"`
-	SourceDir          string     `arg:"--source" help:"Source directory for media files"`
-	DestDir            string     `arg:"--dest" help:"Destination directory for imported media"`
-	ConfigFile         string     `arg:"--config" help:"Path to config file"`
-	OrganizeByDate     bool       `arg:"--organize-by-date" help:"Organize files by date"`
-	RenameByDateTime   bool       `arg:"--rename-by-date-time" help:"Rename files by date and time"`
-	ChecksumDuplicates bool       `arg:"--checksum-duplicates" help:"Use checksums to identify duplicates"`
-	Verbose            bool       `arg:"-v,--verbose" help:"Enable verbose output"`
-	Quiet              bool       `arg:"-q,--quiet" help:"Suppress all non-error output"`
-	DryRun             bool       `arg:"--dry-run" help:"Perform a dry run without making changes"`
-	SkipThumbnails     bool       `arg:"--skip-thumbnails" help:"Skip thumbnail generation"`
-	DeleteOriginals    bool       `arg:"--delete-originals" help:"Delete original files after successful import"`
-	AutoEject          bool       `arg:"--auto-eject" help:"Automatically eject source media after successful import"`
-	CheckDiskSpace     bool       `arg:"--check-disk-space" help:"Check for free disk space before importing" default:"true"`
-	SidecarDefault     string     `arg:"--sidecar-default" help:"Default action for unknown sidecar types (ignore/copy/delete)" default:"delete"`
-	Workers            int        `arg:"--workers" help:"Number of concurrent copy workers (0 = default of 4)"`
+	Watch                *watchArgs `arg:"subcommand:watch" help:"Auto-import media when SD cards are mounted"`
+	SourceDir            string     `arg:"--source" help:"Source directory for media files"`
+	DestDir              string     `arg:"--dest" help:"Destination directory for imported media"`
+	ConfigFile           string     `arg:"--config" help:"Path to config file"`
+	OrganizeByDate       bool       `arg:"--organize-by-date" help:"Organize files by date"`
+	RenameByDateTime     bool       `arg:"--rename-by-date-time" help:"Rename files by date and time"`
+	ChecksumDuplicates   bool       `arg:"--checksum-duplicates" help:"Use checksums to identify duplicates (default)"`
+	NoChecksumDuplicates bool       `arg:"--no-checksum-duplicates" help:"Disable checksum duplicate verification"`
+	Verbose              bool       `arg:"-v,--verbose" help:"Enable verbose output"`
+	Quiet                bool       `arg:"-q,--quiet" help:"Suppress all non-error output"`
+	DryRun               bool       `arg:"--dry-run" help:"Perform a dry run without making changes"`
+	SkipThumbnails       bool       `arg:"--skip-thumbnails" help:"Skip thumbnail generation"`
+	DeleteOriginals      bool       `arg:"--delete-originals" help:"Delete original files after successful import"`
+	AutoEject            bool       `arg:"--auto-eject" help:"Automatically eject source media after successful import"`
+	CheckDiskSpace       bool       `arg:"--check-disk-space" help:"Check for free disk space before importing" default:"true"`
+	SidecarDefault       string     `arg:"--sidecar-default" help:"Default action for unknown sidecar types (ignore/copy/delete)" default:"delete"`
+	Workers              int        `arg:"--workers" help:"Number of concurrent copy workers (0 = default of 4)"`
 }
 
 // Version returns the version string for --version flag
@@ -90,7 +91,7 @@ func setDefaults(cfg *config) error {
 	cfg.ConfigFile = filepath.Join(configDir, "gomediaimport", "config.yaml")
 	cfg.OrganizeByDate = false
 	cfg.RenameByDateTime = false
-	cfg.ChecksumDuplicates = false
+	cfg.ChecksumDuplicates = true
 	cfg.Verbose = false
 	cfg.DryRun = false
 	cfg.SkipThumbnails = false
@@ -197,7 +198,7 @@ func run(osArgs []string) error {
 	err = parser.Parse(osArgs[1:])
 	switch {
 	case errors.Is(err, arg.ErrHelp):
-		parser.WriteHelp(os.Stdout)
+		writeHelp(parser, cfg)
 		return errExitClean
 	case errors.Is(err, arg.ErrVersion):
 		fmt.Println(parsedArgs.Version())
@@ -210,6 +211,10 @@ func run(osArgs []string) error {
 	// Apply config file path from command-line argument if provided
 	if parsedArgs.ConfigFile != "" {
 		cfg.ConfigFile = parsedArgs.ConfigFile
+	}
+
+	if wasFlagProvided(osArgs, "--checksum-duplicates") && wasFlagProvided(osArgs, "--no-checksum-duplicates") {
+		return fmt.Errorf("--checksum-duplicates and --no-checksum-duplicates cannot be used together")
 	}
 
 	// Parse configuration file
@@ -237,6 +242,9 @@ func run(osArgs []string) error {
 	}
 	if wasFlagProvided(osArgs, "--checksum-duplicates") {
 		cfg.ChecksumDuplicates = parsedArgs.ChecksumDuplicates
+	}
+	if wasFlagProvided(osArgs, "--no-checksum-duplicates") {
+		cfg.ChecksumDuplicates = false
 	}
 	if wasFlagProvided(osArgs, "-v") || wasFlagProvided(osArgs, "--verbose") {
 		cfg.Verbose = parsedArgs.Verbose
@@ -280,6 +288,11 @@ func run(osArgs []string) error {
 	}
 
 	return nil
+}
+
+func writeHelp(parser *arg.Parser, cfg config) {
+	parser.WriteHelp(os.Stdout)
+	fmt.Fprintf(os.Stdout, "\nDefaults:\n  Config file: %s\n", cfg.ConfigFile)
 }
 
 func main() {

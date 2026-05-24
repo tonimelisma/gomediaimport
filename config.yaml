@@ -19,8 +19,8 @@ organize_by_date: false
 # Rename files by date and time (YYYYMMDD_HHMMSS format)
 rename_by_date_time: false
 
-# Use xxHash64 checksums to identify duplicates (slower but more accurate)
-checksum_duplicates: false
+# Use xxHash64 checksums to identify duplicates (default: true)
+checksum_duplicates: true
 
 # Enable verbose output
 verbose: false
