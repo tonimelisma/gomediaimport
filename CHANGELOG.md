@@ -1,12 +1,17 @@
 # Changelog
 
+## [v2.0.0] - 2026-05-24
+
+### Breaking Changes
+- **Single-command CLI**: removed the automatic mount-import command and all related platform integration code, configuration keys, tests, documentation, and extra dependency. Imports now run only when invoked directly with `--source` or `source_directory`.
+
 ## [v1.9.0] - 2026-05-24
 
 ### Changed
 - **Checksum verification now defaults on**: duplicate detection still indexes by size and timestamp first, but matching candidates are now verified with xxHash64 by default. Successful copies are also verified with xxHash64 before their status becomes copied. Set `checksum_duplicates: false` / `--no-checksum-duplicates` or `checksum_copies: false` / `--no-checksum-copies` to opt out.
 
 ### Added
-- **Resolved config path in help output**: `--help` and subcommand help now show the platform-specific default config file path computed by `os.UserConfigDir()`.
+- **Resolved config path in help output**: `--help` now shows the platform-specific default config file path computed by `os.UserConfigDir()`.
 - **`--no-checksum-duplicates` flag**: added an explicit CLI switch for disabling checksum duplicate verification.
 - **Post-copy checksum controls**: added `checksum_copies` config plus `--checksum-copies` / `--no-checksum-copies` CLI flags.
 
@@ -42,24 +47,12 @@
 ### Improvements
 - **Renamed example config**: `gomediaimportrc` → `config.yaml` with updated header documenting platform paths.
 
-## [v1.5.2] - 2026-03-18
-
-### Features
-- **Watch mode sound alert**: plays a macOS system sound (`afplay`) when watch import completes. Configurable via `watch_sound` in `~/.gomediaimportrc` (default: `Hero`). Set to empty string to disable. Available sounds: Basso, Blow, Bottle, Frog, Funk, Glass, Hero, Morse, Ping, Pop, Purr, Sosumi, Submarine, Tink.
-
-## [v1.5.1] - 2026-03-17
-
-### Removed
-- **macOS notifications**: removed `sendNotification()` and `watch_notifications` config option. The `osascript`-based notification feature silently fails on macOS Sequoia due to per-app notification permission changes, and all available alternatives have significant drawbacks.
-
 ## [v1.5.0] - 2026-03-17
 
 ### Features
-- **`--quiet` / `-q` flag**: suppresses all non-error stdout output. Stderr warnings/errors always print. Interactive commands (`watch --install/--uninstall/--status`) are NOT suppressed. Forces `Verbose=false`.
-- **Watch mode verbose logging**: when `verbose: true`, `filterVolume()` logs each filter stage (ejectable, DCIM, allowlist) with accept/reject reason. `runWatchImport()` logs config summary and volume scan progress. Output goes to `~/Library/Logs/gomediaimport.out.log` when running via LaunchAgent.
+- **`--quiet` / `-q` flag**: suppresses all non-error stdout output. Stderr warnings/errors always print. Forces `Verbose=false`.
 
 ### Bug Fixes
-- **`runWatchImport()` now collects all errors**: previously only kept the first error via `firstErr`. Now accumulates all errors and returns them via `errors.Join()`.
 - **`ejectDriveMacOS()` no longer prints to stdout**: removed unconditional `fmt.Printf` calls. All messaging moved to `ejectAfterImport()`, gated by `quiet` flag.
 - **`ejectAfterImport()` now returns error**: previously returned void, swallowing eject failures.
 - **Permission-denied warning uses stderr**: `enumerateFiles` WalkDir callback now writes "Permission denied" warning to stderr instead of stdout.
@@ -68,15 +61,9 @@
 - **Reduced mutex scope in `copyFiles` worker loop**: stderr writes and `setFileTimes` warnings no longer hold the mutex.
 - **Extracted `printConfig()`**: 10 inline `fmt.Println` calls in `importMedia()` moved to a named function.
 - **Moved `copyFile()` to `file_operations.go`**: pure function relocated to where other file operations live.
-- **`plistPath` injectable for testing**: `installLaunchAgent`, `uninstallLaunchAgent`, and `watchStatus` now take a `pPath` parameter. All three are testable with temp paths.
 
 ### Testing
-- Added `TestRunWatchImportCollectsAllErrors` — verifies all volume errors are returned, not just the first.
-- Added `TestWatchStatusBinaryMissingWarning` — verifies "WARNING: binary not found" output when plist references a missing binary.
-- Removed `t.Skip` from `TestInstallRefusesIfAlreadyInstalled` and `TestUninstallWhenNotInstalled` — now deterministic with temp paths.
 - Added `TestRunQuietSuppressesOutput` — verifies `--quiet` produces no stdout.
-- Added `TestFilterVolumeVerboseLogging` — verifies verbose filter rejection output.
-- Added `TestRunWatchImportVerboseLogging` — verifies verbose scan/config logging.
 - Added `TestPlanDestinations` — direct unit tests for organize-by-date, rename-by-datetime, plain copy, sidecar-follows-parent, orphaned sidecar, and sidecar-delete.
 - Added `TestProgressTracker` — tests non-TTY output (no ANSI codes), verbose=false (no output), and finish() in non-TTY mode.
 
@@ -85,15 +72,10 @@
 ### Bug Fixes
 - **`deleteOriginalFiles()` now returns errors**: previously silently swallowed delete failures and always returned nil. Now accumulates errors and returns them via `errors.Join()`, ensuring exit code 1 when files fail to delete.
 - **`copyFiles()` returns all errors**: previously only returned the first error, discarding subsequent failures. Now returns all errors via `errors.Join()`.
-- **`sendNotification()` no longer leaks zombie processes**: added goroutine to reap osascript processes after `cmd.Start()`.
 - **`humanReadableDuration()` handles zero/negative durations**: guard at top returns "0s" for non-positive durations.
 
 ### Improvements
-- **`watch --status` warns about stale binary path**: reads the plist and warns if the binary referenced in `ProgramArguments[0]` no longer exists on disk.
 - **Eliminated global `args` variable**: `run()` now takes `osArgs []string` parameter; all tests simplified (no save/restore of globals).
-- **`filterVolume()` takes `diskutilInfoFn` parameter**: replaced package-level `diskutilInfoFunc` global with explicit function parameter for testability.
-- **`runWatchImport()` takes injectable `volumesDir` and `diskutilFn`**: fully testable without mocking `/Volumes`. New `TestRunWatchImportScansVolumes` exercises the full scan-filter-import loop.
-- **`WatchConfig` sub-struct**: watch-related config fields grouped into embedded struct with `yaml:",inline"` (no config file format change).
 - **Extracted `planDestinations()`**: two-pass destination planning pulled out of `importMedia()` into a named function.
 - **Extracted `progressTracker` type**: ANSI progress display encapsulated in a dedicated type with atomic size tracking, separated from copy logic.
 - **Extracted `printSummary()` and `ejectAfterImport()`**: further decomposition of `importMedia()` for readability.
@@ -102,30 +84,11 @@
 - All `run()` tests now pass `--config` pointing to a temp file, isolating from host `~/.gomediaimportrc`.
 - Added `TestDeleteOriginalFilesReturnsError` — verifies error return on delete failure.
 - Added `TestHumanReadableDurationEdgeCases` — verifies zero, negative, and sub-second durations.
-- Added `TestRunWatchImportScansVolumes` — end-to-end test of the watch import scan loop with mock volumes.
-- Enhanced `TestWatchSubcommandParsing` — actually parses CLI args via `arg.NewParser`.
-- Deleted empty `TestWatchRunPrintsTimestamp` (now covered by `TestRunWatchImportScansVolumes`).
-- Conditional tests (`TestInstallRefusesIfAlreadyInstalled`, `TestUninstallWhenNotInstalled`) now use `t.Skip` with clear messages.
 
 ## [v1.3.0] - 2026-03-17
 
 ### Breaking Changes
-- **`SourceDir` is now `--source` flag**: the source directory is no longer a positional argument. Use `--source /path/to/source` instead. This change was required to support subcommands with go-arg.
-
-### Features
-- **Auto-import watch mode** (`watch` subcommand, macOS only): install a LaunchAgent that automatically imports media when SD cards or camera cards are mounted. Uses `StartOnMount` to trigger on any filesystem mount, then filters volumes by diskutil properties, DCIM folder presence, and optional volume name allowlist.
-  - `gomediaimport watch --install` — install the LaunchAgent
-  - `gomediaimport watch --uninstall` — remove the LaunchAgent
-  - `gomediaimport watch --status` — show install status and watch configuration
-- **macOS notifications**: optional `display notification` alerts on card detection, import completion, and errors (configurable via `watch_notifications`)
-- **Volume filtering pipeline**: multi-stage filter (ejectable check, DCIM folder, glob-pattern allowlist) prevents importing from non-camera volumes
-
-### Configuration
-- New optional config keys: `watch_require_dcim` (default: true), `watch_volumes` (default: all), `watch_notifications` (default: true)
-- All watch settings are top-level in `~/.gomediaimportrc`
-
-### New Dependency
-- Added `howett.net/plist` for LaunchAgent plist generation and `diskutil info -plist` parsing
+- **`SourceDir` is now `--source` flag**: the source directory is no longer a positional argument. Use `--source /path/to/source` instead.
 
 ## [v1.2.0] - 2026-03-01
 

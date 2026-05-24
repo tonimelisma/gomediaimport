@@ -64,16 +64,14 @@ gomediaimport is a CLI tool that imports and organizes media files (photos/video
 
 ### Key Files
 
-- **main.go** — Entry point, `run(osArgs []string)` function (extracted from `main()` for testability, takes os args as parameter — no global state), CLI parsing via `arg.NewParser`+`Parse` (`go-arg`), YAML config loading, config validation, `wasFlagProvided(osArgs, flag)` pure function for proper boolean override semantics. Three-tier config precedence: CLI flags > YAML file (`os.UserConfigDir()/gomediaimport/config.yaml`) > hardcoded defaults. Help output appends the resolved platform-specific config file path. `checksum_duplicates` and `checksum_copies` default true; `--no-checksum-duplicates` and `--no-checksum-copies` opt out. `watch` subcommand dispatches to `runWatch(cfg, *watchArgs)`. `WatchConfig` sub-struct embedded in `config` via `yaml:",inline"` for flat YAML keys. `--quiet` flag suppresses all non-error stdout output (`cfg.Quiet` forces `cfg.Verbose=false`).
+- **main.go** — Entry point, `run(osArgs []string)` function (extracted from `main()` for testability, takes os args as parameter — no global state), CLI parsing via `arg.NewParser`+`Parse` (`go-arg`), YAML config loading, config validation, `wasFlagProvided(osArgs, flag)` pure function for proper boolean override semantics. Three-tier config precedence: CLI flags > YAML file (`os.UserConfigDir()/gomediaimport/config.yaml`) > hardcoded defaults. Help output appends the resolved platform-specific config file path. `checksum_duplicates` and `checksum_copies` default true; `--no-checksum-duplicates` and `--no-checksum-copies` opt out. `--quiet` flag suppresses all non-error stdout output (`cfg.Quiet` forces `cfg.Verbose=false`).
 - **import.go** — Core orchestrator. Defines `FileStatus` type with typed constants and `FileInfo` struct (central data type tracking source/dest paths, checksums, creation time, optional `VideoMetadata`, media category, status). `importMedia()` coordinates enumeration → `planDestinations()` → `copyFiles()` → `deleteOriginalFiles()` → `printSummary()` → `ejectAfterImport()`. `printConfig()` extracted for verbose output. `planDestinations()` handles two-pass destination planning (non-sidecars then sidecars); date-time rename imports first sort by capture time and natural source filename order so same-second suffixes follow camera sequence order. `progressTracker` type encapsulates ANSI progress display with atomic size tracking. `ejectAfterImport(sourceDir, quiet)` returns error, gates output on `quiet` flag. `deleteOriginalFiles()` accumulates and returns errors (not silently swallowed). `copyFiles()` returns all errors via `errors.Join()`.
 - **file_operations.go** — File enumeration via `filepath.WalkDir` (with symlink skipping), duplicate detection (size+timestamp index or xxHash64 checksum), `exists()` returns `(bool, error)`, unique filename generation (appends `_001` through `_999999` on conflicts), `copyFile()` stream copy with `Sync()` + explicit `Close()`, `verifyCopiedFileChecksum()` post-copy xxHash64 verification, cross-platform disk eject (`ejectDrive` dispatches to `ejectDriveDarwin` on macOS or `ejectDriveLinux` on Linux).
 - **metadata.go** — Image EXIF/XMP extraction via `bep/imagemeta` (callback-based API with `ShouldHandleTag` set to accept all tags). `resolveImageFormat()` maps FileType/extension to imagemeta format constants. `extractMetadata(fileInfo)` returns a `mediaMetadata` wrapper so supported MP4/MOV-family videos can also carry `VideoMetadata` decoded via `github.com/tonimelisma/videometa` (`QUICKTIME | CONFIG | MAKERNOTES | XML`). `VideoMetadata` stores the chosen timestamp, timestamp provenance/fallback reason, codec/config, GPS, camera make/model, and non-fatal warnings. Unsupported or undecodable video containers fall back to filesystem mtime without aborting enumeration.
 - **media_types.go** — `MediaCategory` (ProcessedPicture, RawPicture, Video, RawVideo, Sidecar) and `FileType` constants. Extension-to-type mapping in `fileTypes` slice. `SidecarAction` type with per-extension defaults and overrides.
-- **watch.go** — Watch mode orchestrator. `runWatch(cfg, *watchArgs)` resolves `plistPath()` and passes it to install/uninstall/status functions (injectable for testing). `installLaunchAgent(cfg, pPath)` generates plist via `howett.net/plist`, writes to `~/Library/LaunchAgents/`, bootstraps with `launchctl`. `runWatchImport(cfg, volumesDir, diskutilFn)` scans configurable volumes dir, filters via `filterVolume()`, calls `importMedia()` for each match, collects all errors via `errors.Join()`. Plays completion sound via `playSound()` using `afplay` (configurable via `watch_sound`, default `Hero`). Verbose logging at each filter stage. `watchStatus(cfg, pPath)` warns if binary path in plist doesn't exist.
-- **diskutil.go** — `VolumeInfo` struct, `diskutilInfoFn` type, `diskutilInfoReal()` implementation, `filterVolume(mountPoint, cfg, diskutilFn)` multi-stage pipeline (ejectable check, DCIM folder, glob allowlist) with verbose logging at each rejection stage — takes function parameter for testability. `parseDiskutilPlist()` for parsing raw plist data.
 ### Program Flow
 
-1. `run()` → parse config (defaults → YAML → CLI overrides via `wasFlagProvided`). If `watch` subcommand, dispatch to `runWatch()`.
+1. `run()` → parse config (defaults → YAML → CLI overrides via `wasFlagProvided`)
 2. `enumerateFiles()` — WalkDir source dir, skip symlinks, filter by media extensions, extract image EXIF/XMP dates and video metadata timestamps (falling back to filesystem mtime when needed)
 3. Plan destinations — assign date-based subdirs (`YYYY/MM`) and/or timestamp-based filenames (`YYYYMMDD_HHMMSS.ext`); date-time rename imports sort by capture time and natural source filename order before suffix assignment
 4. Detect duplicates — O(1) lookup via `fileSizeTime` index, then xxHash64 verification by default for matching existing destination files and in-batch candidates (`--no-checksum-duplicates` / `checksum_duplicates: false` disables checksum verification)
@@ -81,24 +79,14 @@ gomediaimport is a CLI tool that imports and organizes media files (photos/video
 6. Optional: delete originals, eject drive (macOS via `diskutil eject`, Linux via `udisksctl`/`umount`)
 7. Errors go to stderr, exit code 1 on failure
 
-### Watch Mode Flow
-
-1. `launchd` triggers binary via `StartOnMount` → `gomediaimport watch --run`
-2. Load config from `os.UserConfigDir()/gomediaimport/config.yaml`
-3. Scan `/Volumes`, filter each through `filterVolume()` (diskutil → DCIM → allowlist)
-4. For each passing volume, call `importMedia()` with source set to mount point
-5. Exit 0 if all succeed, exit 1 if any failed
-
 ### Design Decisions
 
 - **Idempotent**: safe to re-run; duplicates detected by size+timestamp and, by default, xxHash64 checksum verification, never re-copied
 - **No state file/database**: all state derived from filesystem inspection each run
-- **No global state**: `run(osArgs)` takes args as parameter; `wasFlagProvided(osArgs, flag)` is a pure function; `filterVolume` and `runWatchImport` take injectable function parameters. Tests need no save/restore of globals.
+- **No global state**: `run(osArgs)` takes args as parameter; `wasFlagProvided(osArgs, flag)` is a pure function. Tests need no save/restore of globals.
 - **Boolean CLI override**: `wasFlagProvided()` checks the passed `osArgs` so CLI `--flag=false` correctly overrides a `true` config file value
 - **Concurrent copying**: worker pool with configurable `--workers` (default 4); enumeration remains sequential; `progressTracker` type manages progress display
 - **Warnings to stderr**: checksum errors and setFileTimes failures logged to stderr, not swallowed
 - **xxHash64 checksums by default**: duplicate and post-copy checksum verification are enabled by default; use `--no-checksum-duplicates` / `checksum_duplicates: false` or `--no-checksum-copies` / `checksum_copies: false` for faster but weaker checking
-- **All errors propagated**: `copyFiles()`, `deleteOriginalFiles()`, and `runWatchImport()` accumulate errors and return all of them via `errors.Join()`, ensuring the tool exits non-zero when operations fail
-- **Watch mode is one-shot**: LaunchAgent triggers the binary on every mount; the binary scans all volumes, imports, and exits. No daemon, no polling.
-- **Dependency injection for testing**: `filterVolume` and `runWatchImport` take a `diskutilInfoFn` parameter; `runWatchImport` takes a configurable `volumesDir` path; `installLaunchAgent`, `uninstallLaunchAgent`, `watchStatus` take a `pPath` parameter. Tests pass mock functions and temp paths directly — no package-level globals needed.
-- **Quiet mode**: `--quiet` / `-q` suppresses all non-error stdout output; forces `Verbose=false`. Stderr warnings/errors always print. Interactive commands (`watch --install/--uninstall/--status`) are NOT suppressed.
+- **All errors propagated**: `copyFiles()` and `deleteOriginalFiles()` accumulate errors and return all of them via `errors.Join()`, ensuring the tool exits non-zero when operations fail
+- **Quiet mode**: `--quiet` / `-q` suppresses all non-error stdout output; forces `Verbose=false`. Stderr warnings/errors always print.

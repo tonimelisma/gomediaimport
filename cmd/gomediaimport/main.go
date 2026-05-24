@@ -14,47 +14,31 @@ import (
 // version is set at build time via -ldflags or defaults to "dev"
 var version = "dev"
 
-// watchArgs holds the watch subcommand arguments
-type watchArgs struct {
-	Install   bool `arg:"--install" help:"Install the LaunchAgent for auto-import on SD card mount"`
-	Uninstall bool `arg:"--uninstall" help:"Uninstall the LaunchAgent"`
-	Status    bool `arg:"--status" help:"Show watch service status and config"`
-	Run       bool `arg:"--run" help:"Execute watch import (called by launchd)"`
-}
-
 // cliArgs holds the command-line arguments
 type cliArgs struct {
-	Watch                *watchArgs `arg:"subcommand:watch" help:"Auto-import media when SD cards are mounted"`
-	SourceDir            string     `arg:"--source" help:"Source directory for media files"`
-	DestDir              string     `arg:"--dest" help:"Destination directory for imported media"`
-	ConfigFile           string     `arg:"--config" help:"Path to config file"`
-	OrganizeByDate       bool       `arg:"--organize-by-date" help:"Organize files by date"`
-	RenameByDateTime     bool       `arg:"--rename-by-date-time" help:"Rename files by date and time"`
-	ChecksumDuplicates   bool       `arg:"--checksum-duplicates" help:"Use checksums to identify duplicates (default)"`
-	NoChecksumDuplicates bool       `arg:"--no-checksum-duplicates" help:"Disable checksum duplicate verification"`
-	ChecksumCopies       bool       `arg:"--checksum-copies" help:"Verify copied files with checksums (default)"`
-	NoChecksumCopies     bool       `arg:"--no-checksum-copies" help:"Disable post-copy checksum verification"`
-	Verbose              bool       `arg:"-v,--verbose" help:"Enable verbose output"`
-	Quiet                bool       `arg:"-q,--quiet" help:"Suppress all non-error output"`
-	DryRun               bool       `arg:"--dry-run" help:"Perform a dry run without making changes"`
-	SkipThumbnails       bool       `arg:"--skip-thumbnails" help:"Skip thumbnail generation"`
-	DeleteOriginals      bool       `arg:"--delete-originals" help:"Delete original files after successful import"`
-	AutoEject            bool       `arg:"--auto-eject" help:"Automatically eject source media after successful import"`
-	CheckDiskSpace       bool       `arg:"--check-disk-space" help:"Check for free disk space before importing" default:"true"`
-	SidecarDefault       string     `arg:"--sidecar-default" help:"Default action for unknown sidecar types (ignore/copy/delete)" default:"delete"`
-	Workers              int        `arg:"--workers" help:"Number of concurrent copy workers (0 = default of 4)"`
+	SourceDir            string `arg:"--source" help:"Source directory for media files"`
+	DestDir              string `arg:"--dest" help:"Destination directory for imported media"`
+	ConfigFile           string `arg:"--config" help:"Path to config file"`
+	OrganizeByDate       bool   `arg:"--organize-by-date" help:"Organize files by date"`
+	RenameByDateTime     bool   `arg:"--rename-by-date-time" help:"Rename files by date and time"`
+	ChecksumDuplicates   bool   `arg:"--checksum-duplicates" help:"Use checksums to identify duplicates (default)"`
+	NoChecksumDuplicates bool   `arg:"--no-checksum-duplicates" help:"Disable checksum duplicate verification"`
+	ChecksumCopies       bool   `arg:"--checksum-copies" help:"Verify copied files with checksums (default)"`
+	NoChecksumCopies     bool   `arg:"--no-checksum-copies" help:"Disable post-copy checksum verification"`
+	Verbose              bool   `arg:"-v,--verbose" help:"Enable verbose output"`
+	Quiet                bool   `arg:"-q,--quiet" help:"Suppress all non-error output"`
+	DryRun               bool   `arg:"--dry-run" help:"Perform a dry run without making changes"`
+	SkipThumbnails       bool   `arg:"--skip-thumbnails" help:"Skip thumbnail generation"`
+	DeleteOriginals      bool   `arg:"--delete-originals" help:"Delete original files after successful import"`
+	AutoEject            bool   `arg:"--auto-eject" help:"Automatically eject source media after successful import"`
+	CheckDiskSpace       bool   `arg:"--check-disk-space" help:"Check for free disk space before importing" default:"true"`
+	SidecarDefault       string `arg:"--sidecar-default" help:"Default action for unknown sidecar types (ignore/copy/delete)" default:"delete"`
+	Workers              int    `arg:"--workers" help:"Number of concurrent copy workers (0 = default of 4)"`
 }
 
 // Version returns the version string for --version flag
 func (cliArgs) Version() string {
 	return "gomediaimport " + version
-}
-
-// WatchConfig holds watch mode configuration
-type WatchConfig struct {
-	RequireDCIM bool     `yaml:"watch_require_dcim"`
-	Volumes     []string `yaml:"watch_volumes"`
-	Sound       string   `yaml:"watch_sound"`
 }
 
 // config holds the application configuration
@@ -76,7 +60,6 @@ type config struct {
 	SidecarDefault     SidecarAction            `yaml:"sidecar_default"`
 	Sidecars           map[string]SidecarAction `yaml:"sidecars"`
 	Workers            int                      `yaml:"workers"`
-	Watch              WatchConfig              `yaml:",inline"`
 }
 
 // setDefaults initializes the config with default values
@@ -105,8 +88,6 @@ func setDefaults(cfg *config) error {
 	cfg.SidecarDefault = SidecarDelete
 	cfg.Sidecars = make(map[string]SidecarAction)
 	cfg.Workers = 0
-	cfg.Watch.RequireDCIM = true
-	cfg.Watch.Sound = "Hero"
 	return nil
 }
 
@@ -227,11 +208,6 @@ func run(osArgs []string) error {
 	// Parse configuration file
 	if err := parseConfigFile(&cfg); err != nil {
 		return fmt.Errorf("parsing config file: %w", err)
-	}
-
-	// Watch subcommand — dispatch before CLI flag overrides
-	if parsedArgs.Watch != nil {
-		return runWatch(cfg, parsedArgs.Watch)
 	}
 
 	// Override with command-line arguments

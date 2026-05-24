@@ -6,7 +6,7 @@
 # Configuration file defaults will always be overridden by command-line parameters.
 
 # Source directory for media files
-# If set here, you can omit the positional SOURCE_DIR argument on the command line.
+# If set here, you can omit --source on the command line.
 source_directory: "/path/to/your/source/directory"
 
 # Destination directory for imported media
@@ -57,19 +57,3 @@ sidecar_default: delete
 
 # Number of concurrent copy workers (0 = default of 4)
 workers: 0
-
-# --- Watch mode settings (macOS only) ---
-# These settings control the auto-import LaunchAgent (gomediaimport watch --install)
-
-# Only import from volumes with a DCIM/ directory (default: true)
-watch_require_dcim: true
-
-# Play a macOS system sound when watch import completes (default: Hero)
-# Available: Basso, Blow, Bottle, Frog, Funk, Glass, Hero, Morse, Ping, Pop, Purr, Sosumi, Submarine, Tink
-# Set to empty string to disable: watch_sound: ""
-watch_sound: Hero
-
-# Volume name allowlist (glob patterns). Empty = all ejectable volumes.
-# watch_volumes:
-#   - "EOS_DIGITAL"
-#   - "NIKON*"

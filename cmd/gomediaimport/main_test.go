@@ -244,17 +244,6 @@ func TestRunHelpShowsDefaultConfigFile(t *testing.T) {
 	assertHelpShowsDefaultConfigFile(t, output)
 }
 
-func TestRunWatchHelpShowsDefaultConfigFile(t *testing.T) {
-	output, err := captureStdout(t, func() error {
-		return run([]string{"cmd", "watch", "--help"})
-	})
-	if err != nil && err != errExitClean {
-		t.Fatalf("run(watch --help) returned unexpected error: %v", err)
-	}
-
-	assertHelpShowsDefaultConfigFile(t, output)
-}
-
 func captureStdout(t *testing.T, fn func() error) (string, error) {
 	t.Helper()
 
@@ -425,7 +414,6 @@ func TestConfigMarshalUnmarshal(t *testing.T) {
 		CheckDiskSpace:     true,
 		SidecarDefault:     SidecarDelete,
 		Sidecars:           map[string]SidecarAction{"xmp": SidecarCopy},
-		Watch:              WatchConfig{Volumes: []string{}},
 	}
 
 	data, err := yaml.Marshal(cfg)

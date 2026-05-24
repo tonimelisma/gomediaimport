@@ -5,7 +5,6 @@ gomediaimport is a CLI tool that imports and organizes pictures and videos from 
 ## Features
 
 - Import media files from any source directory
-- **Auto-import watch mode**: macOS LaunchAgent that automatically imports when SD cards are inserted
 - Concurrent file copying with configurable worker count
 - Duplicate detection and post-copy verification with xxHash64 checksums by default
 - Optional file organization into date-based subdirectories (`YYYY/MM`)
@@ -26,7 +25,7 @@ Or clone and build locally:
 ```bash
 git clone https://github.com/tonimelisma/gomediaimport.git
 cd gomediaimport
-go install -ldflags "-X main.version=1.9.0" ./cmd/gomediaimport
+go install -ldflags "-X main.version=2.0.0" ./cmd/gomediaimport
 ```
 
 This installs gomediaimport into your `$GOPATH/bin` directory. Ensure it's in your PATH.
@@ -43,8 +42,6 @@ gomediaimport [--source SOURCE] [--dest DEST] [--config CONFIG]
   [--no-checksum-duplicates] [--checksum-copies] [--no-checksum-copies]
   [-v] [--dry-run] [--skip-thumbnails] [--delete-originals] [--auto-eject]
   [--check-disk-space] [--sidecar-default ACTION] [--workers N] [--version]
-
-gomediaimport watch [--install | --uninstall | --status]
 ```
 
 - `--source SOURCE`: Source directory for media files (optional if set in config file)
@@ -67,12 +64,6 @@ gomediaimport watch [--install | --uninstall | --status]
 - `--workers N`: Number of concurrent copy workers (default: 4)
 - `--version`: Print version and exit
 
-### Watch subcommand (macOS only)
-
-- `watch --install`: Install a macOS LaunchAgent that auto-imports media when SD cards are mounted
-- `watch --uninstall`: Remove the LaunchAgent
-- `watch --status`: Show whether the LaunchAgent is installed and display watch configuration
-
 ### Examples
 
 ```bash
@@ -93,15 +84,6 @@ gomediaimport --dry-run --source /media/sdcard
 
 # Disable checksum duplicate and post-copy verification for faster imports
 gomediaimport --no-checksum-duplicates --no-checksum-copies --source /media/sdcard
-
-# Install auto-import watch mode (macOS)
-gomediaimport watch --install
-
-# Check watch status
-gomediaimport watch --status
-
-# Uninstall watch mode
-gomediaimport watch --uninstall
 ```
 
 ## Configuration
@@ -116,22 +98,6 @@ You can specify a different path using `--config`.
 An example configuration file [`config.yaml`](config.yaml) is provided in the root of this repository.
 
 Set `checksum_duplicates: false` to disable checksum duplicate verification and use size/timestamp-only matching. Set `checksum_copies: false` to disable post-copy checksum verification.
-
-### Watch-specific configuration
-
-The following optional keys control watch mode behavior (all top-level in the YAML file):
-
-| Key | Type | Default | Description |
-|---|---|---|---|
-| `watch_require_dcim` | bool | `true` | Only import from volumes with a `DCIM/` directory |
-| `watch_volumes` | list of strings | `[]` (all) | Volume name allowlist, supports glob patterns (e.g. `"NIKON*"`, `"EOS_*"`). Empty = all passing volumes. |
-| `watch_sound` | string | `"Hero"` | macOS system sound to play when import completes. Set to `""` to disable. Available: Basso, Blow, Bottle, Frog, Funk, Glass, Hero, Morse, Ping, Pop, Purr, Sosumi, Submarine, Tink. |
-When the watch LaunchAgent triggers, it scans all volumes in `/Volumes` and filters them through a pipeline:
-1. **diskutil properties**: rejects non-ejectable or internal non-removable volumes
-2. **DCIM folder**: rejects volumes without a `DCIM/` directory (if `watch_require_dcim` is true)
-3. **Volume allowlist**: rejects volumes not matching any pattern in `watch_volumes` (if non-empty)
-
-Logs are written to `~/Library/Logs/gomediaimport.out.log` and `~/Library/Logs/gomediaimport.err.log`.
 
 ## Supported File Types
 
