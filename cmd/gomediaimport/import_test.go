@@ -788,6 +788,62 @@ func TestPlanDestinations(t *testing.T) {
 		}
 	})
 
+	t.Run("SameSecondRenameUsesNaturalSourceOrder", func(t *testing.T) {
+		capturedAt := time.Date(2026, 5, 23, 14, 22, 33, 0, time.Local)
+		files := []FileInfo{
+			{
+				SourceName:       "DSC11.HEIF",
+				SourceDir:        "/src",
+				CreationDateTime: capturedAt,
+				Size:             300,
+				MediaCategory:    ProcessedPicture,
+				FileType:         HEIF,
+				ParentIndex:      -1,
+			},
+			{
+				SourceName:       "DSC9.HEIF",
+				SourceDir:        "/src",
+				CreationDateTime: capturedAt,
+				Size:             100,
+				MediaCategory:    ProcessedPicture,
+				FileType:         HEIF,
+				ParentIndex:      -1,
+			},
+			{
+				SourceName:       "DSC10.HEIF",
+				SourceDir:        "/src",
+				CreationDateTime: capturedAt,
+				Size:             200,
+				MediaCategory:    ProcessedPicture,
+				FileType:         HEIF,
+				ParentIndex:      -1,
+			},
+		}
+		cfg := config{
+			DestDir:          destDir,
+			RenameByDateTime: true,
+			SidecarDefault:   SidecarDelete,
+			Sidecars:         make(map[string]SidecarAction),
+		}
+		planDestinations(files, cfg)
+
+		got := make(map[string]string, len(files))
+		for _, file := range files {
+			got[file.SourceName] = file.DestName
+		}
+
+		want := map[string]string{
+			"DSC9.HEIF":  "20260523_142233.heif",
+			"DSC10.HEIF": "20260523_142233_001.heif",
+			"DSC11.HEIF": "20260523_142233_002.heif",
+		}
+		for sourceName, destName := range want {
+			if got[sourceName] != destName {
+				t.Errorf("%s expected DestName=%s, got %s", sourceName, destName, got[sourceName])
+			}
+		}
+	})
+
 	t.Run("PlainCopy", func(t *testing.T) {
 		files := []FileInfo{
 			{

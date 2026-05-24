@@ -9,7 +9,7 @@ gomediaimport is a CLI tool that imports and organizes pictures and videos from 
 - Concurrent file copying with configurable worker count
 - Duplicate detection using file size, timestamps, and optional xxHash64 checksums
 - Optional file organization into date-based subdirectories (`YYYY/MM`)
-- Optional file renaming by creation date and time (`YYYYMMDD_HHMMSS`)
+- Optional file renaming by creation date and time (`YYYYMMDD_HHMMSS`), with deterministic same-second suffixes based on original filename order
 - Image EXIF/XMP and MP4/MOV-family video metadata extraction for accurate creation dates
 - Sidecar file handling (XMP, THM, CTG, etc.) with configurable actions
 - Dry-run mode for safe previewing
@@ -51,7 +51,7 @@ gomediaimport watch [--install | --uninstall | --status]
 - `--dest DEST`: Destination directory for imported media (default: `~/Pictures`)
 - `--config CONFIG`: Path to config file (default: platform config dir, e.g. `~/Library/Application Support/gomediaimport/config.yaml` on macOS)
 - `--organize-by-date`: Organize files into `YYYY/MM` subdirectories by creation date
-- `--rename-by-date-time`: Rename files to `YYYYMMDD_HHMMSS` format based on creation date
+- `--rename-by-date-time`: Rename files to `YYYYMMDD_HHMMSS` format based on creation date. Same-second collisions use `_001`, `_002`, etc. in natural original filename order.
 - `--checksum-duplicates`: Use xxHash64 checksums for duplicate detection (slower but more accurate; otherwise uses file size and timestamp)
 - `-v, --verbose`: Enable verbose output with progress information
 - `-q, --quiet`: Suppress all non-error output (forces verbose off)
@@ -178,7 +178,7 @@ File type support is defined in `media_types.go`. Pull requests for missing file
 
 2. **Enumeration**: Scans the source directory recursively, identifying media files by extension and extracting creation dates from image EXIF/XMP or supported MP4/MOV-family video metadata (falls back to file modification time when no supported embedded timestamp is available).
 
-3. **Destination Planning**: Determines each file's destination path based on organization and renaming settings. Detects duplicates using an O(1) size+timestamp index, with optional checksum verification.
+3. **Destination Planning**: Determines each file's destination path based on organization and renaming settings. Date-time rename imports sort files by capture time and natural original filename order first, so same-second rename collisions receive deterministic suffixes. Detects duplicates using an O(1) size+timestamp index, with optional checksum verification.
 
 4. **Concurrent Copying**: Copies files using a worker pool (default 4 workers) with size-interleaved scheduling for balanced load. Files are synced to disk and verified for completeness.
 

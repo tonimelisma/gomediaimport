@@ -118,6 +118,10 @@ func importMedia(cfg config) error {
 // Pass 1: non-sidecar files (with duplicate detection).
 // Pass 2: sidecar files (follow parent or plan independently).
 func planDestinations(files []FileInfo, cfg config) {
+	if cfg.RenameByDateTime {
+		sortFilesForDestinationPlanning(files)
+	}
+
 	// Pass 1: Process non-sidecar files
 	sizeTimeIndex := make(map[fileSizeTime][]int)
 	for i := range files {
@@ -206,6 +210,95 @@ func planDestinations(files []FileInfo, cfg config) {
 			}
 		}
 	}
+}
+
+func sortFilesForDestinationPlanning(files []FileInfo) {
+	sort.SliceStable(files, func(i, j int) bool {
+		a := files[i]
+		b := files[j]
+
+		if !a.CreationDateTime.Equal(b.CreationDateTime) {
+			return a.CreationDateTime.Before(b.CreationDateTime)
+		}
+
+		if cmp := naturalCompare(a.SourceName, b.SourceName); cmp != 0 {
+			return cmp < 0
+		}
+
+		return naturalCompare(filepath.Join(a.SourceDir, a.SourceName), filepath.Join(b.SourceDir, b.SourceName)) < 0
+	})
+}
+
+func naturalCompare(a, b string) int {
+	a = strings.ToLower(a)
+	b = strings.ToLower(b)
+
+	for ai, bi := 0, 0; ai < len(a) || bi < len(b); {
+		if ai >= len(a) {
+			return -1
+		}
+		if bi >= len(b) {
+			return 1
+		}
+
+		ac := a[ai]
+		bc := b[bi]
+		if isASCIIDigit(ac) && isASCIIDigit(bc) {
+			aStart := ai
+			bStart := bi
+			for ai < len(a) && a[ai] == '0' {
+				ai++
+			}
+			for bi < len(b) && b[bi] == '0' {
+				bi++
+			}
+			aDigitsStart := ai
+			bDigitsStart := bi
+			for ai < len(a) && isASCIIDigit(a[ai]) {
+				ai++
+			}
+			for bi < len(b) && isASCIIDigit(b[bi]) {
+				bi++
+			}
+
+			aDigits := ai - aDigitsStart
+			bDigits := bi - bDigitsStart
+			if aDigits != bDigits {
+				if aDigits < bDigits {
+					return -1
+				}
+				return 1
+			}
+			if cmp := strings.Compare(a[aDigitsStart:ai], b[bDigitsStart:bi]); cmp != 0 {
+				return cmp
+			}
+
+			aRun := ai - aStart
+			bRun := bi - bStart
+			if aRun != bRun {
+				if aRun < bRun {
+					return -1
+				}
+				return 1
+			}
+			continue
+		}
+
+		if ac != bc {
+			if ac < bc {
+				return -1
+			}
+			return 1
+		}
+		ai++
+		bi++
+	}
+
+	return 0
+}
+
+func isASCIIDigit(c byte) bool {
+	return c >= '0' && c <= '9'
 }
 
 func printSummary(files []FileInfo) {

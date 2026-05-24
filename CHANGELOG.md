@@ -1,5 +1,10 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+- **Deterministic same-second rename suffixes**: date-time rename imports now sort files by capture time and natural original filename order before assigning names, so rapid-fire media captured in the same second gets `_001`, `_002`, etc. in camera sequence order.
+
 ## [v1.8.0] - 2026-04-08
 
 ### Features
