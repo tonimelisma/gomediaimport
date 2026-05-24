@@ -3,11 +3,12 @@
 ## [v1.9.0] - 2026-05-24
 
 ### Changed
-- **Checksum duplicate verification now defaults on**: duplicate detection still indexes by size and timestamp first, but matching candidates are now verified with xxHash64 by default. Set `checksum_duplicates: false` or pass `--no-checksum-duplicates` to use faster size/timestamp-only matching.
+- **Checksum verification now defaults on**: duplicate detection still indexes by size and timestamp first, but matching candidates are now verified with xxHash64 by default. Successful copies are also verified with xxHash64 before their status becomes copied. Set `checksum_duplicates: false` / `--no-checksum-duplicates` or `checksum_copies: false` / `--no-checksum-copies` to opt out.
 
 ### Added
 - **Resolved config path in help output**: `--help` and subcommand help now show the platform-specific default config file path computed by `os.UserConfigDir()`.
 - **`--no-checksum-duplicates` flag**: added an explicit CLI switch for disabling checksum duplicate verification.
+- **Post-copy checksum controls**: added `checksum_copies` config plus `--checksum-copies` / `--no-checksum-copies` CLI flags.
 
 ### Fixed
 - **Deterministic same-second rename suffixes**: date-time rename imports now sort files by capture time and natural original filename order before assigning names, so rapid-fire media captured in the same second gets `_001`, `_002`, etc. in camera sequence order.

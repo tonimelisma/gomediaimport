@@ -57,6 +57,7 @@ func printConfig(cfg config) {
 	fmt.Println("Organize by date:", cfg.OrganizeByDate)
 	fmt.Println("Rename by date and time:", cfg.RenameByDateTime)
 	fmt.Println("Checksum duplicates:", cfg.ChecksumDuplicates)
+	fmt.Println("Checksum copies:", cfg.ChecksumCopies)
 	fmt.Println("Skip thumbnails:", cfg.SkipThumbnails)
 	fmt.Println("Delete originals:", cfg.DeleteOriginals)
 	fmt.Println("Sidecar default:", cfg.SidecarDefault)
@@ -489,6 +490,19 @@ func copyFiles(files []FileInfo, cfg config) error {
 						mu.Unlock()
 						fmt.Fprintf(os.Stderr, "Error: %v\n", errMsg)
 						continue
+					}
+
+					if cfg.ChecksumCopies {
+						if err := verifyCopiedFileChecksum(&files[i], destPath); err != nil {
+							_ = os.Remove(destPath)
+							errMsg := fmt.Errorf("failed to verify copied file %s: %w", destPath, err)
+							mu.Lock()
+							files[i].Status = StatusFailed
+							copyErrors = append(copyErrors, errMsg)
+							mu.Unlock()
+							fmt.Fprintf(os.Stderr, "Error: %v\n", errMsg)
+							continue
+						}
 					}
 
 					if err := setFileTimes(destPath, files[i].CreationDateTime); err != nil {

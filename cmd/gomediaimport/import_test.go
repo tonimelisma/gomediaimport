@@ -156,6 +156,90 @@ func TestCopyFilesDryRun(t *testing.T) {
 	}
 }
 
+func TestCopyFilesVerifiesChecksum(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "copy-checksum-test")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	srcDir := filepath.Join(tmpDir, "src")
+	destDir := filepath.Join(tmpDir, "dest")
+	if err := os.MkdirAll(srcDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	content := []byte("photo data")
+	if err := os.WriteFile(filepath.Join(srcDir, "source.jpg"), content, 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	files := []FileInfo{
+		{
+			SourceName:       "source.jpg",
+			SourceDir:        srcDir,
+			DestName:         "source.jpg",
+			DestDir:          destDir,
+			Size:             int64(len(content)),
+			CreationDateTime: time.Now(),
+		},
+	}
+
+	cfg := config{ChecksumCopies: true, Workers: 1}
+	if err := copyFiles(files, cfg); err != nil {
+		t.Fatalf("copyFiles failed: %v", err)
+	}
+	if files[0].Status != StatusCopied {
+		t.Fatalf("expected StatusCopied, got %v", files[0].Status)
+	}
+	if files[0].SourceChecksum == "" {
+		t.Fatal("expected source checksum to be cached after post-copy verification")
+	}
+}
+
+func TestCopyFilesFailsOnChecksumMismatch(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "copy-checksum-mismatch-test")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	srcDir := filepath.Join(tmpDir, "src")
+	destDir := filepath.Join(tmpDir, "dest")
+	if err := os.MkdirAll(srcDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	content := []byte("photo data")
+	if err := os.WriteFile(filepath.Join(srcDir, "source.jpg"), content, 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	files := []FileInfo{
+		{
+			SourceName:       "source.jpg",
+			SourceDir:        srcDir,
+			DestName:         "source.jpg",
+			DestDir:          destDir,
+			SourceChecksum:   "0000000000000000",
+			Size:             int64(len(content)),
+			CreationDateTime: time.Now(),
+		},
+	}
+
+	cfg := config{ChecksumCopies: true, Workers: 1}
+	err = copyFiles(files, cfg)
+	if err == nil {
+		t.Fatal("copyFiles should fail when post-copy checksum verification fails")
+	}
+	if files[0].Status != StatusFailed {
+		t.Fatalf("expected StatusFailed, got %v", files[0].Status)
+	}
+	if _, err := os.Stat(filepath.Join(destDir, "source.jpg")); !os.IsNotExist(err) {
+		t.Fatal("failed checksum copy should remove destination file")
+	}
+}
+
 func TestCopyFileErrors(t *testing.T) {
 	tmpDir, err := os.MkdirTemp("", "copyerr-test")
 	if err != nil {

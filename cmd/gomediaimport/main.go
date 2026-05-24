@@ -32,6 +32,8 @@ type cliArgs struct {
 	RenameByDateTime     bool       `arg:"--rename-by-date-time" help:"Rename files by date and time"`
 	ChecksumDuplicates   bool       `arg:"--checksum-duplicates" help:"Use checksums to identify duplicates (default)"`
 	NoChecksumDuplicates bool       `arg:"--no-checksum-duplicates" help:"Disable checksum duplicate verification"`
+	ChecksumCopies       bool       `arg:"--checksum-copies" help:"Verify copied files with checksums (default)"`
+	NoChecksumCopies     bool       `arg:"--no-checksum-copies" help:"Disable post-copy checksum verification"`
 	Verbose              bool       `arg:"-v,--verbose" help:"Enable verbose output"`
 	Quiet                bool       `arg:"-q,--quiet" help:"Suppress all non-error output"`
 	DryRun               bool       `arg:"--dry-run" help:"Perform a dry run without making changes"`
@@ -63,6 +65,7 @@ type config struct {
 	OrganizeByDate     bool                     `yaml:"organize_by_date"`
 	RenameByDateTime   bool                     `yaml:"rename_by_date_time"`
 	ChecksumDuplicates bool                     `yaml:"checksum_duplicates"`
+	ChecksumCopies     bool                     `yaml:"checksum_copies"`
 	Verbose            bool                     `yaml:"verbose"`
 	Quiet              bool                     `yaml:"quiet"`
 	DryRun             bool                     `yaml:"dry_run"`
@@ -92,6 +95,7 @@ func setDefaults(cfg *config) error {
 	cfg.OrganizeByDate = false
 	cfg.RenameByDateTime = false
 	cfg.ChecksumDuplicates = true
+	cfg.ChecksumCopies = true
 	cfg.Verbose = false
 	cfg.DryRun = false
 	cfg.SkipThumbnails = false
@@ -216,6 +220,9 @@ func run(osArgs []string) error {
 	if wasFlagProvided(osArgs, "--checksum-duplicates") && wasFlagProvided(osArgs, "--no-checksum-duplicates") {
 		return fmt.Errorf("--checksum-duplicates and --no-checksum-duplicates cannot be used together")
 	}
+	if wasFlagProvided(osArgs, "--checksum-copies") && wasFlagProvided(osArgs, "--no-checksum-copies") {
+		return fmt.Errorf("--checksum-copies and --no-checksum-copies cannot be used together")
+	}
 
 	// Parse configuration file
 	if err := parseConfigFile(&cfg); err != nil {
@@ -245,6 +252,12 @@ func run(osArgs []string) error {
 	}
 	if wasFlagProvided(osArgs, "--no-checksum-duplicates") {
 		cfg.ChecksumDuplicates = false
+	}
+	if wasFlagProvided(osArgs, "--checksum-copies") {
+		cfg.ChecksumCopies = parsedArgs.ChecksumCopies
+	}
+	if wasFlagProvided(osArgs, "--no-checksum-copies") {
+		cfg.ChecksumCopies = false
 	}
 	if wasFlagProvided(osArgs, "-v") || wasFlagProvided(osArgs, "--verbose") {
 		cfg.Verbose = parsedArgs.Verbose

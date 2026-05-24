@@ -22,6 +22,9 @@ rename_by_date_time: false
 # Use xxHash64 checksums to identify duplicates (default: true)
 checksum_duplicates: true
 
+# Verify copied files with xxHash64 checksums (default: true)
+checksum_copies: true
+
 # Enable verbose output
 verbose: false
 
