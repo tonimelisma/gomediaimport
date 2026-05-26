@@ -16,24 +16,25 @@ var version = "dev"
 
 // cliArgs holds the command-line arguments
 type cliArgs struct {
-	SourceDir            string `arg:"--source" help:"Source directory for media files"`
-	DestDir              string `arg:"--dest" help:"Destination directory for imported media"`
-	ConfigFile           string `arg:"--config" help:"Path to config file"`
-	OrganizeByDate       bool   `arg:"--organize-by-date" help:"Organize files by date"`
-	RenameByDateTime     bool   `arg:"--rename-by-date-time" help:"Rename files by date and time"`
-	ChecksumDuplicates   bool   `arg:"--checksum-duplicates" help:"Use checksums to identify duplicates (default)"`
-	NoChecksumDuplicates bool   `arg:"--no-checksum-duplicates" help:"Disable checksum duplicate verification"`
-	ChecksumCopies       bool   `arg:"--checksum-copies" help:"Verify copied files with checksums (default)"`
-	NoChecksumCopies     bool   `arg:"--no-checksum-copies" help:"Disable post-copy checksum verification"`
-	Verbose              bool   `arg:"-v,--verbose" help:"Enable verbose output"`
-	Quiet                bool   `arg:"-q,--quiet" help:"Suppress all non-error output"`
-	DryRun               bool   `arg:"--dry-run" help:"Perform a dry run without making changes"`
-	SkipThumbnails       bool   `arg:"--skip-thumbnails" help:"Skip thumbnail generation"`
-	DeleteOriginals      bool   `arg:"--delete-originals" help:"Delete original files after successful import"`
-	AutoEject            bool   `arg:"--auto-eject" help:"Automatically eject source media after successful import"`
-	CheckDiskSpace       bool   `arg:"--check-disk-space" help:"Check for free disk space before importing" default:"true"`
-	SidecarDefault       string `arg:"--sidecar-default" help:"Default action for unknown sidecar types (ignore/copy/delete)" default:"delete"`
-	Workers              int    `arg:"--workers" help:"Number of concurrent copy workers (0 = default of 4)"`
+	SourceDir            string      `arg:"--source" help:"Source directory for media files"`
+	DestDir              string      `arg:"--dest" help:"Destination directory for imported media"`
+	ConfigFile           string      `arg:"--config" help:"Path to config file"`
+	OrganizeByDate       bool        `arg:"--organize-by-date" help:"Organize files by date"`
+	RenameByDateTime     bool        `arg:"--rename-by-date-time" help:"Rename files by date and time"`
+	ChecksumDuplicates   bool        `arg:"--checksum-duplicates" help:"Use checksums to identify duplicates (default)"`
+	NoChecksumDuplicates bool        `arg:"--no-checksum-duplicates" help:"Disable checksum duplicate verification"`
+	ChecksumCopies       bool        `arg:"--checksum-copies" help:"Verify copied files with checksums (default)"`
+	NoChecksumCopies     bool        `arg:"--no-checksum-copies" help:"Disable post-copy checksum verification"`
+	Verbose              bool        `arg:"-v,--verbose" help:"Enable verbose output"`
+	Quiet                bool        `arg:"-q,--quiet" help:"Suppress all non-error output"`
+	DryRun               bool        `arg:"--dry-run" help:"Perform a dry run without making changes"`
+	SkipThumbnails       bool        `arg:"--skip-thumbnails" help:"Skip thumbnail generation"`
+	DeleteOriginals      bool        `arg:"--delete-originals" help:"Delete original files after successful import"`
+	AutoEject            bool        `arg:"--auto-eject" help:"Automatically eject source media after successful import"`
+	CheckDiskSpace       bool        `arg:"--check-disk-space" help:"Check for free disk space before importing" default:"true"`
+	SidecarDefault       string      `arg:"--sidecar-default" help:"Default action for unknown sidecar types (ignore/copy/delete)" default:"delete"`
+	Workers              int         `arg:"--workers" help:"Number of concurrent copy workers (0 = default of 4)"`
+	Volumes              *volumesCmd `arg:"subcommand:volumes" help:"Manage remembered removable volume labels"`
 }
 
 // Version returns the version string for --version flag
@@ -43,23 +44,24 @@ func (cliArgs) Version() string {
 
 // config holds the application configuration
 type config struct {
-	SourceDir          string                   `yaml:"source_directory"`
-	DestDir            string                   `yaml:"destination_directory"`
-	ConfigFile         string                   `yaml:"-"`
-	OrganizeByDate     bool                     `yaml:"organize_by_date"`
-	RenameByDateTime   bool                     `yaml:"rename_by_date_time"`
-	ChecksumDuplicates bool                     `yaml:"checksum_duplicates"`
-	ChecksumCopies     bool                     `yaml:"checksum_copies"`
-	Verbose            bool                     `yaml:"verbose"`
-	Quiet              bool                     `yaml:"quiet"`
-	DryRun             bool                     `yaml:"dry_run"`
-	SkipThumbnails     bool                     `yaml:"skip_thumbnails"`
-	DeleteOriginals    bool                     `yaml:"delete_originals"`
-	AutoEject          bool                     `yaml:"auto_eject"`
-	CheckDiskSpace     bool                     `yaml:"check_disk_space"`
-	SidecarDefault     SidecarAction            `yaml:"sidecar_default"`
-	Sidecars           map[string]SidecarAction `yaml:"sidecars"`
-	Workers            int                      `yaml:"workers"`
+	SourceDir          string                           `yaml:"source_directory"`
+	DestDir            string                           `yaml:"destination_directory"`
+	ConfigFile         string                           `yaml:"-"`
+	OrganizeByDate     bool                             `yaml:"organize_by_date"`
+	RenameByDateTime   bool                             `yaml:"rename_by_date_time"`
+	ChecksumDuplicates bool                             `yaml:"checksum_duplicates"`
+	ChecksumCopies     bool                             `yaml:"checksum_copies"`
+	Verbose            bool                             `yaml:"verbose"`
+	Quiet              bool                             `yaml:"quiet"`
+	DryRun             bool                             `yaml:"dry_run"`
+	SkipThumbnails     bool                             `yaml:"skip_thumbnails"`
+	DeleteOriginals    bool                             `yaml:"delete_originals"`
+	AutoEject          bool                             `yaml:"auto_eject"`
+	CheckDiskSpace     bool                             `yaml:"check_disk_space"`
+	SidecarDefault     SidecarAction                    `yaml:"sidecar_default"`
+	Sidecars           map[string]SidecarAction         `yaml:"sidecars"`
+	Workers            int                              `yaml:"workers"`
+	RemovableVolumes   map[string]removableVolumeConfig `yaml:"removable_volumes,omitempty"`
 }
 
 // setDefaults initializes the config with default values
@@ -111,18 +113,9 @@ func parseConfigFile(cfg *config) error {
 }
 
 // validateConfig checks if the configuration is valid
-func validateConfig(cfg *config) error {
-	if cfg.SourceDir == "" {
-		return fmt.Errorf("source directory is not specified")
-	}
-
+func validateCommonConfig(cfg *config) error {
 	if cfg.DestDir == "" {
 		return fmt.Errorf("destination directory is not specified")
-	}
-
-	// Check if source directory exists
-	if _, err := os.Stat(cfg.SourceDir); os.IsNotExist(err) {
-		return fmt.Errorf("source directory does not exist: %s", cfg.SourceDir)
 	}
 
 	// Check if destination directory's parent exists
@@ -146,6 +139,30 @@ func validateConfig(cfg *config) error {
 		if !isValidSidecarAction(action) {
 			return fmt.Errorf("invalid sidecar action for extension %q: %q (must be ignore, copy, or delete)", ext, action)
 		}
+	}
+
+	for label := range cfg.RemovableVolumes {
+		if label == "" {
+			return fmt.Errorf("removable volume label cannot be empty")
+		}
+	}
+
+	return nil
+}
+
+// validateConfig checks if the configuration is valid for a single-source import.
+func validateConfig(cfg *config) error {
+	if err := validateCommonConfig(cfg); err != nil {
+		return err
+	}
+
+	if cfg.SourceDir == "" {
+		return fmt.Errorf("source directory is not specified")
+	}
+
+	// Check if source directory exists
+	if _, err := os.Stat(cfg.SourceDir); os.IsNotExist(err) {
+		return fmt.Errorf("source directory does not exist: %s", cfg.SourceDir)
 	}
 
 	return nil
@@ -210,6 +227,18 @@ func run(osArgs []string) error {
 		return fmt.Errorf("parsing config file: %w", err)
 	}
 
+	sourceProvided := parsedArgs.SourceDir != ""
+
+	if parsedArgs.Volumes != nil {
+		if parsedArgs.Volumes.Add != nil && parsedArgs.Volumes.Add.DestDir == "" && parsedArgs.DestDir != "" {
+			parsedArgs.Volumes.Add.DestDir = parsedArgs.DestDir
+		}
+		if err := runVolumesCommand(parsedArgs.Volumes, cfg); err != nil {
+			return err
+		}
+		return nil
+	}
+
 	// Override with command-line arguments
 	if parsedArgs.SourceDir != "" {
 		cfg.SourceDir = parsedArgs.SourceDir
@@ -264,6 +293,16 @@ func run(osArgs []string) error {
 	}
 	if cfg.Quiet {
 		cfg.Verbose = false
+	}
+
+	if !sourceProvided && len(cfg.RemovableVolumes) > 0 {
+		if err := validateCommonConfig(&cfg); err != nil {
+			return fmt.Errorf("invalid configuration: %w", err)
+		}
+		if err := importConfiguredRemovableVolumes(cfg); err != nil {
+			return fmt.Errorf("importing configured removable volumes: %w", err)
+		}
+		return nil
 	}
 
 	// Validate the configuration

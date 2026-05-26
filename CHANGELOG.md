@@ -1,5 +1,10 @@
 # Changelog
 
+## [v2.1.0] - 2026-05-26
+
+### Added
+- **Label-based removable volume imports**: added `gomediaimport volumes list`, `gomediaimport volumes add LABEL`, and label-keyed `removable_volumes` config. Running `gomediaimport` with configured labels imports every currently mounted removable volume with a saved label, using each label's configured destination or the global default.
+
 ## [v2.0.0] - 2026-05-24
 
 ### Breaking Changes

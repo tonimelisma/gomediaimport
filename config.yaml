@@ -13,6 +13,17 @@ source_directory: "/path/to/your/source/directory"
 # If not specified, defaults to ~/Pictures
 destination_directory: "/path/to/your/destination/directory"
 
+# Remember removable volumes by label.
+# `gomediaimport volumes list` shows currently mounted removable volumes.
+# `gomediaimport volumes add LABEL` adds a currently mounted label here.
+# Labels are selectors: if more than one mounted removable volume has a saved
+# label, all matching volumes are imported.
+#
+# removable_volumes:
+#   SOFIA: {}
+#   "4152150790":
+#     destination_directory: "/path/to/custom/destination"
+
 # Organize files by date into YYYY/MM subdirectories
 organize_by_date: false
 

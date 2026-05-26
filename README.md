@@ -5,6 +5,7 @@ gomediaimport is a CLI tool that imports and organizes pictures and videos from 
 ## Features
 
 - Import media files from any source directory
+- Remember removable volume labels and import all matching mounted volumes with one command
 - Concurrent file copying with configurable worker count
 - Duplicate detection and post-copy verification with xxHash64 checksums by default
 - Optional file organization into date-based subdirectories (`YYYY/MM`)
@@ -42,9 +43,13 @@ gomediaimport [--source SOURCE] [--dest DEST] [--config CONFIG]
   [--no-checksum-duplicates] [--checksum-copies] [--no-checksum-copies]
   [-v] [--dry-run] [--skip-thumbnails] [--delete-originals] [--auto-eject]
   [--check-disk-space] [--sidecar-default ACTION] [--workers N] [--version]
+
+gomediaimport volumes list [--config CONFIG]
+gomediaimport volumes add LABEL [--dest DEST] [--config CONFIG]
+gomediaimport volumes add ID [--dest DEST] [--config CONFIG]
 ```
 
-- `--source SOURCE`: Source directory for media files (optional if set in config file)
+- `--source SOURCE`: Source directory for a one-off import (optional if set in config file and no saved removable volumes are configured)
 - `--dest DEST`: Destination directory for imported media (default: `~/Pictures`)
 - `--config CONFIG`: Path to config file. The default platform-specific path is shown in `--help`.
 - `--organize-by-date`: Organize files into `YYYY/MM` subdirectories by creation date
@@ -63,6 +68,10 @@ gomediaimport [--source SOURCE] [--dest DEST] [--config CONFIG]
 - `--sidecar-default ACTION`: Default action for sidecar file types: `ignore`, `copy`, or `delete` (default: `delete`)
 - `--workers N`: Number of concurrent copy workers (default: 4)
 - `--version`: Print version and exit
+- `volumes list`: List currently mounted removable volumes
+- `volumes add LABEL`: Save a currently mounted removable volume label to the config
+- `volumes add ID`: Save the label from the numbered row shown by `volumes list`
+- `volumes add ... --dest DEST`: Set a destination for that saved label; otherwise the global destination is used
 
 ### Examples
 
@@ -71,6 +80,18 @@ gomediaimport [--source SOURCE] [--dest DEST] [--config CONFIG]
 gomediaimport --source /media/sdcard
 
 # Import using source directory from config file
+gomediaimport
+
+# List removable volumes currently mounted
+gomediaimport volumes list
+
+# Save a currently mounted removable volume label using the default destination
+gomediaimport volumes add SOFIA
+
+# Save the first listed removable volume with its own destination
+gomediaimport volumes add 1 --dest "/Users/me/Pictures/Sofia"
+
+# Import all configured removable volume labels currently mounted
 gomediaimport
 
 # Import media and organize by date into YYYY/MM subdirectories
@@ -98,6 +119,21 @@ You can specify a different path using `--config`.
 An example configuration file [`config.yaml`](config.yaml) is provided in the root of this repository.
 
 Set `checksum_duplicates: false` to disable checksum duplicate verification and use size/timestamp-only matching. Set `checksum_copies: false` to disable post-copy checksum verification.
+
+### Removable volumes
+
+Saved removable volumes are configured by label. Labels are selectors, not unique identities: if multiple currently mounted removable volumes have the same saved label, gomediaimport imports all of them. The source directory is computed from each volume's current mount path at runtime.
+
+```yaml
+destination_directory: "/Users/me/Pictures/Camera Roll"
+
+removable_volumes:
+  SOFIA: {}
+  "4152150790":
+    destination_directory: "/Users/me/Pictures/Camera 4152150790"
+```
+
+In this example, mounted removable volumes labeled `SOFIA` import to the global `destination_directory`. Mounted removable volumes labeled `4152150790` import to their volume-specific destination.
 
 ## Supported File Types
 
@@ -145,7 +181,7 @@ File type support is defined in `media_types.go`. Pull requests for missing file
 
 ## How It Works
 
-1. **Configuration**: Loads settings from built-in defaults, then the YAML config file, then CLI arguments.
+1. **Configuration**: Loads settings from built-in defaults, then the YAML config file, then CLI arguments. If configured removable volume labels exist and `--source` is not provided, gomediaimport discovers currently mounted removable volumes and imports every matching label.
 
 2. **Enumeration**: Scans the source directory recursively, identifying media files by extension and extracting creation dates from image EXIF/XMP or supported MP4/MOV-family video metadata (falls back to file modification time when no supported embedded timestamp is available).
 
