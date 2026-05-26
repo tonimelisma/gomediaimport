@@ -297,28 +297,6 @@ func calculateXXHash(filepath string) (string, error) {
 	return fmt.Sprintf("%016x", hash.Sum64()), nil
 }
 
-func verifyCopiedFileChecksum(file *FileInfo, destPath string) error {
-	srcChecksum := file.SourceChecksum
-	if srcChecksum == "" {
-		checksum, err := calculateXXHash(filepath.Join(file.SourceDir, file.SourceName))
-		if err != nil {
-			return fmt.Errorf("failed to calculate source checksum: %w", err)
-		}
-		srcChecksum = checksum
-		file.SourceChecksum = checksum
-	}
-
-	destChecksum, err := calculateXXHash(destPath)
-	if err != nil {
-		return fmt.Errorf("failed to calculate destination checksum: %w", err)
-	}
-	if srcChecksum != destChecksum {
-		return fmt.Errorf("checksum mismatch: source %s, destination %s", srcChecksum, destChecksum)
-	}
-
-	return nil
-}
-
 func setFileTimes(path string, modTime time.Time) error {
 	// Set modification time only
 	if err := os.Chtimes(path, modTime, modTime); err != nil {
@@ -353,11 +331,6 @@ func copyFile(src, dst string) error {
 	if written != sourceInfo.Size() {
 		_ = destFile.Close()
 		return fmt.Errorf("incomplete copy: wrote %d of %d bytes", written, sourceInfo.Size())
-	}
-
-	if err := destFile.Sync(); err != nil {
-		_ = destFile.Close()
-		return err
 	}
 
 	return destFile.Close()

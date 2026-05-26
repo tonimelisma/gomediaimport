@@ -7,7 +7,7 @@ gomediaimport is a CLI tool that imports and organizes pictures and videos from 
 - Import media files from any source directory
 - Remember removable volume labels and import all matching mounted volumes with one command
 - Concurrent file copying with configurable worker count
-- Duplicate detection and post-copy verification with xxHash64 checksums by default
+- Duplicate detection with optional xxHash64 verification for apparent duplicates
 - Optional file organization into date-based subdirectories (`YYYY/MM`)
 - Optional file renaming by creation date and time (`YYYYMMDD_HHMMSS`), with deterministic same-second suffixes based on original filename order
 - Image EXIF/XMP and MP4/MOV-family video metadata extraction for accurate creation dates
@@ -40,8 +40,7 @@ To embed the version number, pass it via `-ldflags` as shown above. Without it, 
 ```bash
 gomediaimport [--source SOURCE] [--dest DEST] [--config CONFIG]
   [--organize-by-date] [--rename-by-date-time] [--checksum-duplicates]
-  [--no-checksum-duplicates] [--checksum-copies] [--no-checksum-copies]
-  [-v] [--dry-run] [--skip-thumbnails] [--delete-originals] [--auto-eject]
+  [--no-checksum-duplicates] [-v] [--dry-run] [--skip-thumbnails] [--delete-originals] [--auto-eject]
   [--check-disk-space] [--sidecar-default ACTION] [--workers N] [--version]
 
 gomediaimport volumes list [--config CONFIG]
@@ -56,8 +55,6 @@ gomediaimport volumes add ID [--dest DEST] [--config CONFIG]
 - `--rename-by-date-time`: Rename files to `YYYYMMDD_HHMMSS` format based on creation date. Same-second collisions use `_001`, `_002`, etc. in natural original filename order.
 - `--checksum-duplicates`: Use xxHash64 checksums for duplicate detection (default)
 - `--no-checksum-duplicates`: Disable checksum duplicate verification and use file size/timestamp matching only
-- `--checksum-copies`: Verify copied files with xxHash64 checksums (default)
-- `--no-checksum-copies`: Disable post-copy checksum verification
 - `-v, --verbose`: Enable verbose output with progress information
 - `-q, --quiet`: Suppress all non-error output (forces verbose off)
 - `--dry-run`: Preview what would happen without making any changes
@@ -103,8 +100,8 @@ gomediaimport --rename-by-date-time --delete-originals --source /media/sdcard
 # Perform a dry run without making changes
 gomediaimport --dry-run --source /media/sdcard
 
-# Disable checksum duplicate and post-copy verification for faster imports
-gomediaimport --no-checksum-duplicates --no-checksum-copies --source /media/sdcard
+# Disable checksum duplicate verification for faster planning
+gomediaimport --no-checksum-duplicates --source /media/sdcard
 ```
 
 ## Configuration
@@ -118,7 +115,7 @@ You can specify a different path using `--config`.
 
 An example configuration file [`config.yaml`](config.yaml) is provided in the root of this repository.
 
-Set `checksum_duplicates: false` to disable checksum duplicate verification and use size/timestamp-only matching. Set `checksum_copies: false` to disable post-copy checksum verification.
+Set `checksum_duplicates: false` to disable checksum duplicate verification and use size/timestamp-only matching.
 
 ### Removable volumes
 
@@ -187,7 +184,7 @@ File type support is defined in `media_types.go`. Pull requests for missing file
 
 3. **Destination Planning**: Determines each file's destination path based on organization and renaming settings. Date-time rename imports sort files by capture time and natural original filename order first, so same-second rename collisions receive deterministic suffixes. Detects duplicates using an O(1) size+timestamp index, with xxHash64 checksum verification enabled by default.
 
-4. **Concurrent Copying**: Copies files using a worker pool (default 4 workers) with size-interleaved scheduling for balanced load. Files are synced to disk, checked for complete byte count, and verified with xxHash64 checksums by default.
+4. **Concurrent Copying**: Copies files using a worker pool (default 4 workers) with size-interleaved scheduling for balanced load. Each copy checks that the written byte count matches the source size and then closes the destination file.
 
 5. **Cleanup**: Optionally deletes original files after successful copy. Can eject the source drive (macOS via `diskutil`, Linux via `udisksctl`).
 

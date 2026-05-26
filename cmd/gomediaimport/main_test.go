@@ -56,10 +56,6 @@ func TestSetDefaults(t *testing.T) {
 		t.Errorf("Expected ChecksumDuplicates to be true, got %v", cfg.ChecksumDuplicates)
 	}
 
-	if cfg.ChecksumCopies != true {
-		t.Errorf("Expected ChecksumCopies to be true, got %v", cfg.ChecksumCopies)
-	}
-
 	if cfg.CheckDiskSpace != true {
 		t.Errorf("Expected CheckDiskSpace to be true, got %v", cfg.CheckDiskSpace)
 	}
@@ -78,7 +74,6 @@ destination_directory: /path/to/dest
 organize_by_date: true
 rename_by_date_time: true
 checksum_duplicates: true
-checksum_copies: true
 `
 	tmpfile, err := os.CreateTemp("", "config-*.yaml")
 	if err != nil {
@@ -410,7 +405,6 @@ func TestConfigMarshalUnmarshal(t *testing.T) {
 		OrganizeByDate:     true,
 		RenameByDateTime:   true,
 		ChecksumDuplicates: true,
-		ChecksumCopies:     true,
 		CheckDiskSpace:     true,
 		SidecarDefault:     SidecarDelete,
 		Sidecars:           map[string]SidecarAction{"xmp": SidecarCopy},
@@ -446,7 +440,6 @@ func TestConfigFilePermissions(t *testing.T) {
 		OrganizeByDate:     true,
 		RenameByDateTime:   true,
 		ChecksumDuplicates: true,
-		ChecksumCopies:     true,
 	}
 
 	data, err := yaml.Marshal(cfg)
@@ -595,125 +588,6 @@ func TestChecksumDuplicateConfiguration(t *testing.T) {
 		err := run([]string{"cmd", "--checksum-duplicates", "--no-checksum-duplicates"})
 		if err == nil {
 			t.Fatal("expected conflicting checksum flags to return an error")
-		}
-		if !strings.Contains(err.Error(), "cannot be used together") {
-			t.Fatalf("expected conflict error, got %v", err)
-		}
-	})
-}
-
-func TestChecksumCopyConfiguration(t *testing.T) {
-	createTempConfig := func(t *testing.T, content string) string {
-		t.Helper()
-		tmpfile, err := os.CreateTemp("", "config-copy-checksum-*.yaml")
-		if err != nil {
-			t.Fatal(err)
-		}
-		if _, err := tmpfile.Write([]byte(content)); err != nil {
-			tmpfile.Close()
-			os.Remove(tmpfile.Name())
-			t.Fatal(err)
-		}
-		if err := tmpfile.Close(); err != nil {
-			os.Remove(tmpfile.Name())
-			t.Fatal(err)
-		}
-		return tmpfile.Name()
-	}
-
-	t.Run("DefaultTrue", func(t *testing.T) {
-		cfg := &config{}
-		if err := setDefaults(cfg); err != nil {
-			t.Fatal(err)
-		}
-		if !cfg.ChecksumCopies {
-			t.Error("expected post-copy checksum verification to default to true")
-		}
-	})
-
-	t.Run("ConfigFalse", func(t *testing.T) {
-		tmpFileName := createTempConfig(t, "checksum_copies: false")
-		defer os.Remove(tmpFileName)
-
-		cfg := &config{}
-		if err := setDefaults(cfg); err != nil {
-			t.Fatal(err)
-		}
-		cfg.ConfigFile = tmpFileName
-		if err := parseConfigFile(cfg); err != nil {
-			t.Fatal(err)
-		}
-		if cfg.ChecksumCopies {
-			t.Error("expected checksum_copies: false to disable post-copy checksum verification")
-		}
-	})
-
-	t.Run("CLINoChecksumOverConfigTrue", func(t *testing.T) {
-		tmpFileName := createTempConfig(t, "checksum_copies: true")
-		defer os.Remove(tmpFileName)
-
-		osArgs := []string{"cmd", "--config", tmpFileName, "--no-checksum-copies"}
-		cfg := &config{}
-		if err := setDefaults(cfg); err != nil {
-			t.Fatal(err)
-		}
-
-		var parsedArgs cliArgs
-		p, err := arg.NewParser(arg.Config{}, &parsedArgs)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := p.Parse(osArgs[1:]); err != nil {
-			t.Fatal(err)
-		}
-
-		cfg.ConfigFile = parsedArgs.ConfigFile
-		if err := parseConfigFile(cfg); err != nil {
-			t.Fatal(err)
-		}
-		if wasFlagProvided(osArgs, "--no-checksum-copies") {
-			cfg.ChecksumCopies = false
-		}
-		if cfg.ChecksumCopies {
-			t.Error("expected --no-checksum-copies to disable post-copy checksum verification")
-		}
-	})
-
-	t.Run("CLIEnableOverConfigFalse", func(t *testing.T) {
-		tmpFileName := createTempConfig(t, "checksum_copies: false")
-		defer os.Remove(tmpFileName)
-
-		osArgs := []string{"cmd", "--config", tmpFileName, "--checksum-copies"}
-		cfg := &config{}
-		if err := setDefaults(cfg); err != nil {
-			t.Fatal(err)
-		}
-
-		var parsedArgs cliArgs
-		p, err := arg.NewParser(arg.Config{}, &parsedArgs)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := p.Parse(osArgs[1:]); err != nil {
-			t.Fatal(err)
-		}
-
-		cfg.ConfigFile = parsedArgs.ConfigFile
-		if err := parseConfigFile(cfg); err != nil {
-			t.Fatal(err)
-		}
-		if wasFlagProvided(osArgs, "--checksum-copies") {
-			cfg.ChecksumCopies = parsedArgs.ChecksumCopies
-		}
-		if !cfg.ChecksumCopies {
-			t.Error("expected --checksum-copies to enable post-copy checksum verification")
-		}
-	})
-
-	t.Run("ConflictingCLIFlags", func(t *testing.T) {
-		err := run([]string{"cmd", "--checksum-copies", "--no-checksum-copies"})
-		if err == nil {
-			t.Fatal("expected conflicting checksum copy flags to return an error")
 		}
 		if !strings.Contains(err.Error(), "cannot be used together") {
 			t.Fatalf("expected conflict error, got %v", err)

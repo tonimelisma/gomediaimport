@@ -1,5 +1,11 @@
 # Changelog
 
+## [v2.2.0] - 2026-05-26
+
+### Removed
+- Removed all post-copy checksum verification functionality, including `checksum_copies`, `--checksum-copies`, `--no-checksum-copies`, and copied-file checksum verification after transfer.
+- Removed per-file `Sync()` during copy. Copies still check the written byte count, close the destination file explicitly, and clean up partial files on copy errors.
+
 ## [v2.1.0] - 2026-05-26
 
 ### Added
