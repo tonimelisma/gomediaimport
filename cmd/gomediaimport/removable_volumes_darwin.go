@@ -25,11 +25,12 @@ func listMountedRemovableVolumes() ([]mountedRemovableVolume, error) {
 
 	var volumes []mountedRemovableVolume
 	for _, stat := range stats[:n] {
-		if stat.Flags&unix.MNT_REMOVABLE == 0 {
-			continue
-		}
 		mountPath := nullTerminatedBytesToString(stat.Mntonname[:])
 		if mountPath == "" {
+			continue
+		}
+		mountedFrom := nullTerminatedBytesToString(stat.Mntfromname[:])
+		if !darwinIsRemovableVolumeCandidate(mountPath, mountedFrom, stat.Flags) {
 			continue
 		}
 		label, err := darwinVolumeLabel(mountPath)
@@ -42,6 +43,18 @@ func listMountedRemovableVolumes() ([]mountedRemovableVolume, error) {
 		})
 	}
 	return volumes, nil
+}
+
+func darwinIsRemovableVolumeCandidate(mountPath, mountedFrom string, flags uint32) bool {
+	if flags&uint32(unix.MNT_REMOVABLE) != 0 {
+		return true
+	}
+
+	// Some SD cards mounted through macOS File Provider/File System Kit report
+	// as local /dev/disk* volumes without MNT_REMOVABLE.
+	return flags&uint32(unix.MNT_LOCAL) != 0 &&
+		filepath.Dir(filepath.Clean(mountPath)) == "/Volumes" &&
+		strings.HasPrefix(mountedFrom, "/dev/disk")
 }
 
 func darwinVolumeLabel(mountPath string) (string, error) {

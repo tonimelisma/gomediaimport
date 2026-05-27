@@ -1,5 +1,10 @@
 # Changelog
 
+## [v2.2.1] - 2026-05-26
+
+### Fixed
+- Fixed macOS removable volume discovery for SD cards that mount as local `/Volumes/...` device volumes without the `MNT_REMOVABLE` flag.
+
 ## [v2.2.0] - 2026-05-26
 
 ### Removed
