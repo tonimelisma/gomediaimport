@@ -85,7 +85,7 @@ func TestListRemovableVolumes(t *testing.T) {
 }
 
 func TestAddRemovableVolume(t *testing.T) {
-	t.Run("AddsCurrentLabelWithDestinationAndPreservesUnknownKeys", func(t *testing.T) {
+	t.Run("RejectsUnknownConfigKeysBeforeUpdating", func(t *testing.T) {
 		destDir := t.TempDir()
 		configPath := filepath.Join(t.TempDir(), "config.yaml")
 		if err := os.WriteFile(configPath, []byte("destination_directory: "+destDir+"\nchecksum_imports: true\n"), 0600); err != nil {
@@ -94,8 +94,12 @@ func TestAddRemovableVolume(t *testing.T) {
 		withMountedRemovableVolumes(t, []mountedRemovableVolume{{Label: "SOFIA", MountPath: "/Volumes/SOFIA"}})
 
 		customDest := filepath.Join(destDir, "Sofia")
-		if err := run([]string{"cmd", "--config", configPath, "volumes", "add", "SOFIA", "--dest", customDest}); err != nil {
-			t.Fatalf("run volumes add failed: %v", err)
+		err := run([]string{"cmd", "--config", configPath, "volumes", "add", "SOFIA", "--dest", customDest})
+		if err == nil {
+			t.Fatal("expected unknown config key to fail")
+		}
+		if !strings.Contains(err.Error(), "checksum_imports") {
+			t.Fatalf("expected error to name unknown key, got: %v", err)
 		}
 
 		data, err := os.ReadFile(configPath)
@@ -103,10 +107,8 @@ func TestAddRemovableVolume(t *testing.T) {
 			t.Fatal(err)
 		}
 		text := string(data)
-		for _, want := range []string{"checksum_imports: true", "removable_volumes:", "SOFIA:", "destination_directory: " + customDest} {
-			if !strings.Contains(text, want) {
-				t.Fatalf("expected config to contain %q, got:\n%s", want, text)
-			}
+		if strings.Contains(text, "removable_volumes:") {
+			t.Fatalf("config should remain unchanged after validation failure, got:\n%s", text)
 		}
 	})
 

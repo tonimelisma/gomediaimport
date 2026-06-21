@@ -56,10 +56,11 @@ func TestEnumerateFiles(t *testing.T) {
 	}
 
 	// Test enumerateFiles
-	files, err := enumerateFiles(tempDir, config{})
+	result, err := enumerateFiles(tempDir, config{})
 	if err != nil {
 		t.Fatalf("enumerateFiles failed: %v", err)
 	}
+	files := result.Files
 
 	// Check if the correct number of media files were enumerated
 	expectedCount := 2 // Only media files should be counted
@@ -90,12 +91,12 @@ func TestEnumerateFiles(t *testing.T) {
 	}
 	defer os.RemoveAll(emptyDir)
 
-	emptyFiles, err := enumerateFiles(emptyDir, config{})
+	emptyResult, err := enumerateFiles(emptyDir, config{})
 	if err != nil {
 		t.Fatalf("enumerateFiles failed for empty directory: %v", err)
 	}
-	if len(emptyFiles) != 0 {
-		t.Errorf("Expected 0 files in empty directory, but got %d", len(emptyFiles))
+	if len(emptyResult.Files) != 0 {
+		t.Errorf("Expected 0 files in empty directory, but got %d", len(emptyResult.Files))
 	}
 }
 
@@ -452,10 +453,11 @@ func TestEnumerateFilesWithSidecars(t *testing.T) {
 
 	t.Run("DefaultConfig_SidecarsEnumerated", func(t *testing.T) {
 		cfg := config{SidecarDefault: SidecarDelete}
-		files, err := enumerateFiles(tempDir, cfg)
+		result, err := enumerateFiles(tempDir, cfg)
 		if err != nil {
 			t.Fatalf("enumerateFiles failed: %v", err)
 		}
+		files := result.Files
 
 		// Should have: IMG_001.jpg, IMG_002.mp4 (media) + IMG_001.xmp, IMG_002.thm, index.ctg (sidecars with non-ignore action)
 		// notes.txt is not media or sidecar — skipped
@@ -486,10 +488,11 @@ func TestEnumerateFilesWithSidecars(t *testing.T) {
 				"ctg": SidecarIgnore,
 			},
 		}
-		files, err := enumerateFiles(tempDir, cfg)
+		result, err := enumerateFiles(tempDir, cfg)
 		if err != nil {
 			t.Fatalf("enumerateFiles failed: %v", err)
 		}
+		files := result.Files
 
 		for _, f := range files {
 			if f.MediaCategory == Sidecar {
@@ -506,10 +509,11 @@ func TestEnumerateFilesWithSidecars(t *testing.T) {
 			SidecarDefault: SidecarDelete,
 			Sidecars:       map[string]SidecarAction{"xmp": SidecarIgnore},
 		}
-		files, err := enumerateFiles(tempDir, cfg)
+		result, err := enumerateFiles(tempDir, cfg)
 		if err != nil {
 			t.Fatalf("enumerateFiles failed: %v", err)
 		}
+		files := result.Files
 
 		for _, f := range files {
 			if f.SourceName == "IMG_001.xmp" {
@@ -591,10 +595,11 @@ func TestEnumerateFilesSkipsSymlinks(t *testing.T) {
 		t.Skip("failed to create dir symlink, skipping")
 	}
 
-	files, err := enumerateFiles(tempDir, config{})
+	result, err := enumerateFiles(tempDir, config{})
 	if err != nil {
 		t.Fatalf("enumerateFiles failed: %v", err)
 	}
+	files := result.Files
 
 	// Should find real.jpg and subdir/inner.jpg but NOT link.jpg or linkeddir/inner.jpg
 	for _, f := range files {
@@ -633,10 +638,11 @@ func TestZeroByteFile(t *testing.T) {
 	}
 
 	// Enumerate and verify
-	files, err := enumerateFiles(srcDir, config{})
+	result, err := enumerateFiles(srcDir, config{})
 	if err != nil {
 		t.Fatalf("enumerateFiles failed: %v", err)
 	}
+	files := result.Files
 	if len(files) != 1 {
 		t.Fatalf("expected 1 file, got %d", len(files))
 	}

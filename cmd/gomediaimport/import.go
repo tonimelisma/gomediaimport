@@ -57,7 +57,6 @@ func printConfig(cfg config) {
 	fmt.Println("Organize by date:", cfg.OrganizeByDate)
 	fmt.Println("Rename by date and time:", cfg.RenameByDateTime)
 	fmt.Println("Checksum duplicates:", cfg.ChecksumDuplicates)
-	fmt.Println("Skip thumbnails:", cfg.SkipThumbnails)
 	fmt.Println("Delete originals:", cfg.DeleteOriginals)
 	fmt.Println("Sidecar default:", cfg.SidecarDefault)
 	fmt.Println("Copy workers:", effectiveWorkers(cfg.Workers))
@@ -69,19 +68,23 @@ func importMedia(cfg config) error {
 		printConfig(cfg)
 	}
 
-	files, err := enumerateFiles(cfg.SourceDir, cfg)
+	enumeration, err := enumerateFiles(cfg.SourceDir, cfg)
 	if err != nil {
 		return fmt.Errorf("failed to enumerate files: %w", err)
 	}
+	files := enumeration.Files
 	for i := range files {
 		files[i].ParentIndex = -1
 	}
 
 	if cfg.Verbose {
 		fmt.Printf("Number of files enumerated: %d\n", len(files))
+		printSourceArtifactSummary(enumeration.CleanupTargets, "excluded")
 	}
 
-	planDestinations(files, cfg)
+	if err := planDestinations(files, cfg); err != nil {
+		return fmt.Errorf("failed to plan destinations: %w", err)
+	}
 
 	if cfg.CheckDiskSpace {
 		var totalSize int64
@@ -102,6 +105,9 @@ func importMedia(cfg config) error {
 	if err := deleteOriginalFiles(files, cfg); err != nil {
 		return fmt.Errorf("failed to delete original files: %w", err)
 	}
+	if err := cleanupSourceArtifacts(cfg.SourceDir, enumeration.CleanupTargets, cfg, os.RemoveAll); err != nil {
+		return fmt.Errorf("failed to clean source artifacts: %w", err)
+	}
 
 	if cfg.Verbose {
 		printSummary(files)
@@ -117,7 +123,9 @@ func importMedia(cfg config) error {
 // planDestinations assigns DestDir and DestName for all files.
 // Pass 1: non-sidecar files (with duplicate detection).
 // Pass 2: sidecar files (follow parent or plan independently).
-func planDestinations(files []FileInfo, cfg config) {
+func planDestinations(files []FileInfo, cfg config) error {
+	var planningErrors []error
+
 	if cfg.RenameByDateTime {
 		sortFilesForDestinationPlanning(files)
 	}
@@ -144,6 +152,7 @@ func planDestinations(files []FileInfo, cfg config) {
 
 		if err := setFinalDestinationFilename(&files, i, initialFilename, cfg, sizeTimeIndex); err != nil {
 			files[i].Status = StatusUnnamable
+			planningErrors = append(planningErrors, fmt.Errorf("failed to plan destination for %s: %w", filepath.Join(files[i].SourceDir, files[i].SourceName), err))
 			continue
 		}
 
@@ -210,6 +219,8 @@ func planDestinations(files []FileInfo, cfg config) {
 			}
 		}
 	}
+
+	return errors.Join(planningErrors...)
 }
 
 func sortFilesForDestinationPlanning(files []FileInfo) {
@@ -323,6 +334,25 @@ func printSummary(files []FileInfo) {
 	fmt.Printf("Copied: %d\n", copied)
 	if sidecarDeleted > 0 {
 		fmt.Printf("Sidecars marked for deletion: %d\n", sidecarDeleted)
+	}
+}
+
+func printSourceArtifactSummary(targets []sourceCleanupTarget, action string) {
+	counts := make(map[sourceArtifactKind]int)
+	for _, target := range targets {
+		counts[target.Kind]++
+	}
+
+	fmt.Printf("Source artifacts %s: %d\n", action, len(targets))
+	for _, kind := range []sourceArtifactKind{
+		sourceArtifactTrash,
+		sourceArtifactSonyThumbnail,
+		sourceArtifactSonyXML,
+		sourceArtifactAppleDouble,
+	} {
+		if count := counts[kind]; count > 0 {
+			fmt.Printf("  %s: %d\n", kind, count)
+		}
 	}
 }
 
@@ -550,6 +580,84 @@ func deleteOriginalFiles(files []FileInfo, cfg config) error {
 
 	if len(deleteErrors) > 0 {
 		return errors.Join(deleteErrors...)
+	}
+	return nil
+}
+
+func cleanupSourceArtifacts(sourceDir string, targets []sourceCleanupTarget, cfg config, removeAll func(string) error) error {
+	if !cfg.DeleteOriginals {
+		return nil
+	}
+
+	var cleanupErrors []error
+	var cleaned []sourceCleanupTarget
+
+	for _, target := range targets {
+		if err := validateSourceCleanupTarget(sourceDir, target.Path); err != nil {
+			if os.IsNotExist(err) {
+				continue
+			}
+			fmt.Fprintf(os.Stderr, "Failed to delete source artifact %s: %v\n", target.Path, err)
+			cleanupErrors = append(cleanupErrors, fmt.Errorf("failed to validate source artifact %s: %w", target.Path, err))
+			continue
+		}
+
+		if !cfg.DryRun {
+			if err := removeAll(target.Path); err != nil {
+				fmt.Fprintf(os.Stderr, "Failed to delete source artifact %s: %v\n", target.Path, err)
+				cleanupErrors = append(cleanupErrors, fmt.Errorf("failed to delete source artifact %s: %w", target.Path, err))
+				continue
+			}
+		}
+
+		cleaned = append(cleaned, target)
+		if cfg.Verbose {
+			verb := "Deleted"
+			if cfg.DryRun {
+				verb = "Would delete"
+			}
+			fmt.Printf("%s source artifact (%s): %s\n", verb, target.Kind, target.Path)
+		}
+	}
+
+	if cfg.Verbose {
+		action := "deleted"
+		if cfg.DryRun {
+			action = "scheduled for deletion"
+		}
+		printSourceArtifactSummary(cleaned, action)
+	}
+
+	if len(cleanupErrors) > 0 {
+		return errors.Join(cleanupErrors...)
+	}
+	return nil
+}
+
+func validateSourceCleanupTarget(sourceDir, targetPath string) error {
+	sourceAbs, err := filepath.Abs(sourceDir)
+	if err != nil {
+		return fmt.Errorf("resolving source path: %w", err)
+	}
+	targetAbs, err := filepath.Abs(targetPath)
+	if err != nil {
+		return fmt.Errorf("resolving target path: %w", err)
+	}
+
+	relPath, err := filepath.Rel(sourceAbs, targetAbs)
+	if err != nil {
+		return fmt.Errorf("checking target path: %w", err)
+	}
+	if relPath == "." || relPath == ".." || strings.HasPrefix(relPath, ".."+string(filepath.Separator)) || filepath.IsAbs(relPath) {
+		return fmt.Errorf("target is outside the source directory")
+	}
+
+	info, err := os.Lstat(targetAbs)
+	if err != nil {
+		return err
+	}
+	if info.Mode()&os.ModeSymlink != 0 {
+		return fmt.Errorf("target is a symbolic link")
 	}
 	return nil
 }

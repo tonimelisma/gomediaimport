@@ -42,10 +42,8 @@ quiet: false
 # Perform a dry run without making changes
 dry_run: false
 
-# Skip thumbnail import (e.g. video thumbnails)
-skip_thumbnails: false
-
-# Delete original files after successful import
+# After a successful import, delete imported originals, configured sidecars,
+# recognized source trash, Sony XAVC thumbnail/XML companions, and AppleDouble files.
 delete_originals: false
 
 # Automatically eject source media after successful import

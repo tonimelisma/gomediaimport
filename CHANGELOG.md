@@ -1,5 +1,25 @@
 # Changelog
 
+## [v3.0.0] - 2026-06-20
+
+### Breaking Changes
+- Removed `skip_thumbnails` and `--skip-thumbnails`. Sony XAVC thumbnail directories are now always excluded from import.
+- YAML parsing is now strict. Unknown, misspelled, or removed keys such as `skip_thumbnails` and `checksum_imports` fail with a config error.
+
+### Fixed
+- Top-level macOS, Linux, and Windows trash directories are excluded before media classification, preventing trashed JPGs from being restored into the destination library.
+- Sony `[PRIVATE/]M4ROOT/THMBNL` JPGs and `CLIP/*.XML` companions no longer accumulate when `delete_originals` is enabled.
+- AppleDouble `._*` files are no longer misclassified as media.
+- Destination-planning errors now stop the import instead of silently skipping an unnamable file and continuing into source cleanup.
+
+### Behavior
+- `delete_originals` is the sole source-cleanup control. Excluded artifacts are preserved when false and removed only after planning, copying, and original deletion all succeed when true.
+- Source cleanup failures are accumulated, return a non-zero exit status, and prevent automatic ejection.
+- Verbose and dry-run output report excluded and planned cleanup targets separately from imported media.
+
+### Testing
+- Added coverage for exact trash and Sony path recognition, orphan cleanup, AppleDouble handling, dry-run behavior, cleanup failure aggregation, unsafe target rejection, strict YAML, and removed CLI help.
+
 ## [v2.2.1] - 2026-05-26
 
 ### Fixed

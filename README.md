@@ -12,6 +12,7 @@ gomediaimport is a CLI tool that imports and organizes pictures and videos from 
 - Optional file renaming by creation date and time (`YYYYMMDD_HHMMSS`), with deterministic same-second suffixes based on original filename order
 - Image EXIF/XMP and MP4/MOV-family video metadata extraction for accurate creation dates
 - Sidecar file handling (XMP, THM, CTG, etc.) with configurable actions
+- System trash, Sony XAVC thumbnails/XML, and macOS AppleDouble files are never imported
 - Dry-run mode for safe previewing
 - Idempotent: safe to re-run without duplicating files
 
@@ -26,7 +27,7 @@ Or clone and build locally:
 ```bash
 git clone https://github.com/tonimelisma/gomediaimport.git
 cd gomediaimport
-go install -ldflags "-X main.version=2.0.0" ./cmd/gomediaimport
+go install -ldflags "-X main.version=3.0.0" ./cmd/gomediaimport
 ```
 
 This installs gomediaimport into your `$GOPATH/bin` directory. Ensure it's in your PATH.
@@ -40,7 +41,7 @@ To embed the version number, pass it via `-ldflags` as shown above. Without it, 
 ```bash
 gomediaimport [--source SOURCE] [--dest DEST] [--config CONFIG]
   [--organize-by-date] [--rename-by-date-time] [--checksum-duplicates]
-  [--no-checksum-duplicates] [-v] [--dry-run] [--skip-thumbnails] [--delete-originals] [--auto-eject]
+  [--no-checksum-duplicates] [-v] [--dry-run] [--delete-originals] [--auto-eject]
   [--check-disk-space] [--sidecar-default ACTION] [--workers N] [--version]
 
 gomediaimport volumes list [--config CONFIG]
@@ -58,8 +59,7 @@ gomediaimport volumes add ID [--dest DEST] [--config CONFIG]
 - `-v, --verbose`: Enable verbose output with progress information
 - `-q, --quiet`: Suppress all non-error output (forces verbose off)
 - `--dry-run`: Preview what would happen without making any changes
-- `--skip-thumbnails`: Skip thumbnail directories in source data (e.g. video thumbnails)
-- `--delete-originals`: Delete original files after successful import
+- `--delete-originals`: After a successful import, delete imported originals, configured sidecars, recognized source trash, Sony XAVC thumbnail/XML companions, and AppleDouble files
 - `--auto-eject`: Eject the source drive after a fully successful import (default: `false`). Uses `diskutil eject` on macOS, `udisksctl unmount` on Linux.
 - `--check-disk-space`: Check for sufficient free disk space on the destination before importing (default: `true`). Use `--check-disk-space=false` to disable.
 - `--sidecar-default ACTION`: Default action for sidecar file types: `ignore`, `copy`, or `delete` (default: `delete`)
@@ -114,6 +114,8 @@ gomediaimport can be configured using a YAML configuration file. The default con
 You can specify a different path using `--config`.
 
 An example configuration file [`config.yaml`](config.yaml) is provided in the root of this repository.
+
+Configuration parsing is strict. Unknown or removed keys cause an error instead of being silently ignored.
 
 Set `checksum_duplicates: false` to disable checksum duplicate verification and use size/timestamp-only matching.
 
@@ -172,6 +174,17 @@ For embedded timestamps, gomediaimport uses `videometa` on `.mp4`, `.mov`, `.m4v
 
 Use `--sidecar-default` to change the default action, or configure per-extension overrides in the config file.
 
+### Excluded Source Artifacts
+
+gomediaimport always excludes the following source artifacts before media classification:
+
+- Top-level `.Trashes`, `.Trash`, numeric `.Trash-UID`, and `$RECYCLE.BIN` directories
+- Sony XAVC thumbnail directories at `M4ROOT/THMBNL` or `PRIVATE/M4ROOT/THMBNL`
+- XML companions directly inside `M4ROOT/CLIP` or `PRIVATE/M4ROOT/CLIP`
+- macOS AppleDouble files whose names begin with `._`
+
+These artifacts are preserved when `--delete-originals` is off. When it is on, they are deleted only after destination planning, copying, and ordinary original deletion all succeed. Cleanup failures make the command exit non-zero and prevent automatic ejection.
+
 ### Adding file types
 
 File type support is defined in `media_types.go`. Pull requests for missing file types are welcome.
@@ -180,13 +193,13 @@ File type support is defined in `media_types.go`. Pull requests for missing file
 
 1. **Configuration**: Loads settings from built-in defaults, then the YAML config file, then CLI arguments. If configured removable volume labels exist and `--source` is not provided, gomediaimport discovers currently mounted removable volumes and imports every matching label.
 
-2. **Enumeration**: Scans the source directory recursively, identifying media files by extension and extracting creation dates from image EXIF/XMP or supported MP4/MOV-family video metadata (falls back to file modification time when no supported embedded timestamp is available).
+2. **Enumeration**: Scans the source directory recursively. System trash, exact Sony XAVC thumbnail/XML paths, and AppleDouble files are separated into a cleanup list before media files are identified by extension and their metadata is extracted.
 
 3. **Destination Planning**: Determines each file's destination path based on organization and renaming settings. Date-time rename imports sort files by capture time and natural original filename order first, so same-second rename collisions receive deterministic suffixes. Detects duplicates using an O(1) size+timestamp index, with xxHash64 checksum verification enabled by default.
 
 4. **Concurrent Copying**: Copies files using a worker pool (default 4 workers) with size-interleaved scheduling for balanced load. Each copy checks that the written byte count matches the source size and then closes the destination file.
 
-5. **Cleanup**: Optionally deletes original files after successful copy. Can eject the source drive (macOS via `diskutil`, Linux via `udisksctl`).
+5. **Cleanup**: With `--delete-originals`, deletes imported originals first and then excluded source artifacts. Any deletion failure returns non-zero and leaves the source mounted. Ejection (macOS via `diskutil`, Linux via `udisksctl`) is attempted only after all earlier phases succeed.
 
 ## Contributing
 

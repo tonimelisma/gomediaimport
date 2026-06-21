@@ -261,10 +261,11 @@ func TestSidecarCopyFollowsParentRename(t *testing.T) {
 		Sidecars:         map[string]SidecarAction{},
 	}
 
-	files, err := enumerateFiles(srcDir, cfg)
+	result, err := enumerateFiles(srcDir, cfg)
 	if err != nil {
 		t.Fatalf("enumerateFiles failed: %v", err)
 	}
+	files := result.Files
 
 	// Set CreationDateTime on all files for consistent testing
 	for i := range files {
@@ -793,7 +794,9 @@ func TestPlanDestinations(t *testing.T) {
 			SidecarDefault: SidecarDelete,
 			Sidecars:       make(map[string]SidecarAction),
 		}
-		planDestinations(files, cfg)
+		if err := planDestinations(files, cfg); err != nil {
+			t.Fatal(err)
+		}
 
 		expected := filepath.Join(destDir, "2024/06")
 		if files[0].DestDir != expected {
@@ -822,7 +825,9 @@ func TestPlanDestinations(t *testing.T) {
 			SidecarDefault:   SidecarDelete,
 			Sidecars:         make(map[string]SidecarAction),
 		}
-		planDestinations(files, cfg)
+		if err := planDestinations(files, cfg); err != nil {
+			t.Fatal(err)
+		}
 
 		if files[0].DestName != "20240615_103000.jpg" {
 			t.Errorf("expected DestName=20240615_103000.jpg, got %s", files[0].DestName)
@@ -866,7 +871,9 @@ func TestPlanDestinations(t *testing.T) {
 			SidecarDefault:   SidecarDelete,
 			Sidecars:         make(map[string]SidecarAction),
 		}
-		planDestinations(files, cfg)
+		if err := planDestinations(files, cfg); err != nil {
+			t.Fatal(err)
+		}
 
 		got := make(map[string]string, len(files))
 		for _, file := range files {
@@ -902,7 +909,9 @@ func TestPlanDestinations(t *testing.T) {
 			SidecarDefault: SidecarDelete,
 			Sidecars:       make(map[string]SidecarAction),
 		}
-		planDestinations(files, cfg)
+		if err := planDestinations(files, cfg); err != nil {
+			t.Fatal(err)
+		}
 
 		if files[0].DestDir != destDir {
 			t.Errorf("expected DestDir=%s, got %s", destDir, files[0].DestDir)
@@ -938,7 +947,9 @@ func TestPlanDestinations(t *testing.T) {
 			SidecarDefault:   SidecarCopy,
 			Sidecars:         make(map[string]SidecarAction),
 		}
-		planDestinations(files, cfg)
+		if err := planDestinations(files, cfg); err != nil {
+			t.Fatal(err)
+		}
 
 		if files[1].DestName != "20240615_103000.xmp" {
 			t.Errorf("expected sidecar DestName=20240615_103000.xmp, got %s", files[1].DestName)
@@ -969,7 +980,9 @@ func TestPlanDestinations(t *testing.T) {
 			SidecarDefault:   SidecarCopy,
 			Sidecars:         make(map[string]SidecarAction),
 		}
-		planDestinations(files, cfg)
+		if err := planDestinations(files, cfg); err != nil {
+			t.Fatal(err)
+		}
 
 		expected := filepath.Join(destDir, "2024/06")
 		if files[0].DestDir != expected {
@@ -1005,7 +1018,9 @@ func TestPlanDestinations(t *testing.T) {
 			SidecarDefault: SidecarDelete,
 			Sidecars:       make(map[string]SidecarAction),
 		}
-		planDestinations(files, cfg)
+		if err := planDestinations(files, cfg); err != nil {
+			t.Fatal(err)
+		}
 
 		if files[1].Status != StatusSidecarDeleted {
 			t.Errorf("expected THM sidecar Status=StatusSidecarDeleted, got %v", files[1].Status)

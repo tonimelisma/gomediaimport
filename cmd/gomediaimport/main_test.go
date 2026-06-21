@@ -129,6 +129,41 @@ organize_by_date: not_a_bool
 	if err == nil {
 		t.Fatalf("parseConfigFile should return error for invalid YAML")
 	}
+
+	for _, unknownKey := range []string{"skip_thumbnails", "checksum_imports", "typo_setting"} {
+		t.Run("RejectsUnknownKey_"+unknownKey, func(t *testing.T) {
+			configPath := writeStrictConfigTestFile(t, unknownKey+": true")
+			cfg := &config{ConfigFile: configPath}
+			err := parseConfigFile(cfg)
+			if err == nil {
+				t.Fatalf("expected unknown key %q to fail", unknownKey)
+			}
+			if !strings.Contains(err.Error(), unknownKey) {
+				t.Fatalf("expected error to name %q, got: %v", unknownKey, err)
+			}
+		})
+	}
+
+	t.Run("RejectsUnknownNestedRemovableVolumeKey", func(t *testing.T) {
+		configPath := writeStrictConfigTestFile(t, "removable_volumes:\n  CAMERA:\n    unknown_destination: /tmp")
+		cfg := &config{ConfigFile: configPath}
+		err := parseConfigFile(cfg)
+		if err == nil {
+			t.Fatal("expected unknown nested key to fail")
+		}
+		if !strings.Contains(err.Error(), "unknown_destination") {
+			t.Fatalf("expected error to name nested key, got: %v", err)
+		}
+	})
+}
+
+func writeStrictConfigTestFile(t *testing.T, content string) string {
+	t.Helper()
+	configPath := filepath.Join(t.TempDir(), "config.yaml")
+	if err := os.WriteFile(configPath, []byte(content), 0600); err != nil {
+		t.Fatal(err)
+	}
+	return configPath
 }
 
 // TestValidateConfig tests the validateConfig function
@@ -237,6 +272,19 @@ func TestRunHelpShowsDefaultConfigFile(t *testing.T) {
 	}
 
 	assertHelpShowsDefaultConfigFile(t, output)
+	if strings.Contains(output, "skip-thumbnails") {
+		t.Fatalf("removed --skip-thumbnails flag still appears in help:\n%s", output)
+	}
+}
+
+func TestRunRejectsRemovedSkipThumbnailsFlag(t *testing.T) {
+	err := run([]string{"cmd", "--skip-thumbnails"})
+	if err == nil {
+		t.Fatal("expected removed --skip-thumbnails flag to fail")
+	}
+	if !strings.Contains(err.Error(), "skip-thumbnails") {
+		t.Fatalf("expected error to name removed flag, got: %v", err)
+	}
 }
 
 func captureStdout(t *testing.T, fn func() error) (string, error) {

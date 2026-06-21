@@ -1,8 +1,10 @@
 package main
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -26,8 +28,7 @@ type cliArgs struct {
 	Verbose              bool        `arg:"-v,--verbose" help:"Enable verbose output"`
 	Quiet                bool        `arg:"-q,--quiet" help:"Suppress all non-error output"`
 	DryRun               bool        `arg:"--dry-run" help:"Perform a dry run without making changes"`
-	SkipThumbnails       bool        `arg:"--skip-thumbnails" help:"Skip thumbnail generation"`
-	DeleteOriginals      bool        `arg:"--delete-originals" help:"Delete original files after successful import"`
+	DeleteOriginals      bool        `arg:"--delete-originals" help:"Delete imported originals and excluded source artifacts after successful import"`
 	AutoEject            bool        `arg:"--auto-eject" help:"Automatically eject source media after successful import"`
 	CheckDiskSpace       bool        `arg:"--check-disk-space" help:"Check for free disk space before importing" default:"true"`
 	SidecarDefault       string      `arg:"--sidecar-default" help:"Default action for unknown sidecar types (ignore/copy/delete)" default:"delete"`
@@ -51,7 +52,6 @@ type config struct {
 	Verbose            bool                             `yaml:"verbose"`
 	Quiet              bool                             `yaml:"quiet"`
 	DryRun             bool                             `yaml:"dry_run"`
-	SkipThumbnails     bool                             `yaml:"skip_thumbnails"`
 	DeleteOriginals    bool                             `yaml:"delete_originals"`
 	AutoEject          bool                             `yaml:"auto_eject"`
 	CheckDiskSpace     bool                             `yaml:"check_disk_space"`
@@ -79,7 +79,6 @@ func setDefaults(cfg *config) error {
 	cfg.ChecksumDuplicates = true
 	cfg.Verbose = false
 	cfg.DryRun = false
-	cfg.SkipThumbnails = false
 	cfg.DeleteOriginals = false
 	cfg.AutoEject = false
 	cfg.CheckDiskSpace = true
@@ -100,8 +99,9 @@ func parseConfigFile(cfg *config) error {
 		return fmt.Errorf("failed to read config file: %v", err)
 	}
 
-	err = yaml.Unmarshal(data, cfg)
-	if err != nil {
+	decoder := yaml.NewDecoder(bytes.NewReader(data))
+	decoder.KnownFields(true)
+	if err := decoder.Decode(cfg); err != nil && !errors.Is(err, io.EOF) {
 		return fmt.Errorf("failed to parse config file: %v", err)
 	}
 
@@ -256,9 +256,6 @@ func run(osArgs []string) error {
 	}
 	if wasFlagProvided(osArgs, "--dry-run") {
 		cfg.DryRun = parsedArgs.DryRun
-	}
-	if wasFlagProvided(osArgs, "--skip-thumbnails") {
-		cfg.SkipThumbnails = parsedArgs.SkipThumbnails
 	}
 	if wasFlagProvided(osArgs, "--delete-originals") {
 		cfg.DeleteOriginals = parsedArgs.DeleteOriginals

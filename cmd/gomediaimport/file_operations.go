@@ -8,23 +8,52 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"strings"
 	"time"
 
 	"github.com/cespare/xxhash/v2"
 )
 
-// enumerateFiles scans the source directory and returns a list of FileInfo structs
-func enumerateFiles(sourceDir string, cfg config) ([]FileInfo, error) {
-	var files []FileInfo
+type sourceArtifactKind string
+
+const (
+	sourceArtifactTrash         sourceArtifactKind = "system trash"
+	sourceArtifactSonyThumbnail sourceArtifactKind = "Sony thumbnail directory"
+	sourceArtifactSonyXML       sourceArtifactKind = "Sony XML companion"
+	sourceArtifactAppleDouble   sourceArtifactKind = "AppleDouble file"
+)
+
+type sourceCleanupTarget struct {
+	Path string
+	Kind sourceArtifactKind
+}
+
+type enumerationResult struct {
+	Files          []FileInfo
+	CleanupTargets []sourceCleanupTarget
+}
+
+// enumerateFiles scans the source directory and separates importable media from
+// source artifacts that may be cleaned after a successful import.
+func enumerateFiles(sourceDir string, cfg config) (enumerationResult, error) {
+	var result enumerationResult
+	cleanupPaths := make(map[string]struct{})
+	addCleanupTarget := func(path string, kind sourceArtifactKind) {
+		if _, exists := cleanupPaths[path]; exists {
+			return
+		}
+		cleanupPaths[path] = struct{}{}
+		result.CleanupTargets = append(result.CleanupTargets, sourceCleanupTarget{Path: path, Kind: kind})
+	}
 
 	// Check if the source directory exists
 	_, err := os.Stat(sourceDir)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil, fmt.Errorf("source directory does not exist: %w", err)
+			return enumerationResult{}, fmt.Errorf("source directory does not exist: %w", err)
 		}
-		return nil, fmt.Errorf("error accessing source directory: %w", err)
+		return enumerationResult{}, fmt.Errorf("error accessing source directory: %w", err)
 	}
 
 	// Walk through the directory
@@ -45,16 +74,35 @@ func enumerateFiles(sourceDir string, cfg config) ([]FileInfo, error) {
 			return nil
 		}
 
-		// Skip directories and files containing "THMBNL" if skipThumbnails is true
-		if cfg.SkipThumbnails && strings.Contains(path, "THMBNL") {
-			if d.IsDir() {
-				return filepath.SkipDir
-			}
-			return nil
+		relPath, err := filepath.Rel(sourceDir, path)
+		if err != nil {
+			return fmt.Errorf("getting relative path for %q: %w", path, err)
+		}
+
+		// Trash is classified before camera-specific artifacts so anything moved
+		// into trash can never be mistaken for live media.
+		if d.IsDir() && isTopLevelTrashDir(relPath) {
+			addCleanupTarget(path, sourceArtifactTrash)
+			return filepath.SkipDir
+		}
+
+		if d.IsDir() && isSonyThumbnailDir(relPath) {
+			addCleanupTarget(path, sourceArtifactSonyThumbnail)
+			return filepath.SkipDir
 		}
 
 		// Skip directories
 		if d.IsDir() {
+			return nil
+		}
+
+		if strings.HasPrefix(d.Name(), "._") {
+			addCleanupTarget(path, sourceArtifactAppleDouble)
+			return nil
+		}
+
+		if isSonyClipXML(relPath) {
+			addCleanupTarget(path, sourceArtifactSonyXML)
 			return nil
 		}
 
@@ -85,7 +133,7 @@ func enumerateFiles(sourceDir string, cfg config) ([]FileInfo, error) {
 					return nil
 				}
 				fileInfo.MediaCategory = Sidecar
-				files = append(files, fileInfo)
+				result.Files = append(result.Files, fileInfo)
 				return nil
 			}
 			// Skip non-media, non-sidecar files
@@ -102,15 +150,78 @@ func enumerateFiles(sourceDir string, cfg config) ([]FileInfo, error) {
 			fileInfo.VideoMetadata = extractedMetadata.VideoMetadata
 		}
 
-		files = append(files, fileInfo)
+		result.Files = append(result.Files, fileInfo)
 		return nil
 	})
 
 	if err != nil {
-		return nil, fmt.Errorf("error walking the path %s: %w", sourceDir, err)
+		return enumerationResult{}, fmt.Errorf("error walking the path %s: %w", sourceDir, err)
 	}
 
-	return files, nil
+	sort.Slice(result.CleanupTargets, func(i, j int) bool {
+		return result.CleanupTargets[i].Path < result.CleanupTargets[j].Path
+	})
+	return result, nil
+}
+
+func relativePathComponents(path string) []string {
+	cleaned := filepath.Clean(path)
+	if cleaned == "." {
+		return nil
+	}
+	return strings.Split(filepath.ToSlash(cleaned), "/")
+}
+
+func equalFoldComponents(actual []string, expected ...string) bool {
+	if len(actual) != len(expected) {
+		return false
+	}
+	for i := range actual {
+		if !strings.EqualFold(actual[i], expected[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+func isTopLevelTrashDir(relPath string) bool {
+	components := relativePathComponents(relPath)
+	if len(components) != 1 {
+		return false
+	}
+
+	name := components[0]
+	if strings.EqualFold(name, ".Trashes") || strings.EqualFold(name, ".Trash") || strings.EqualFold(name, "$RECYCLE.BIN") {
+		return true
+	}
+
+	const prefix = ".Trash-"
+	if len(name) <= len(prefix) || !strings.EqualFold(name[:len(prefix)], prefix) {
+		return false
+	}
+	for _, char := range name[len(prefix):] {
+		if char < '0' || char > '9' {
+			return false
+		}
+	}
+	return true
+}
+
+func isSonyThumbnailDir(relPath string) bool {
+	components := relativePathComponents(relPath)
+	return equalFoldComponents(components, "M4ROOT", "THMBNL") ||
+		equalFoldComponents(components, "PRIVATE", "M4ROOT", "THMBNL")
+}
+
+func isSonyClipXML(relPath string) bool {
+	components := relativePathComponents(relPath)
+	if len(components) == 3 && equalFoldComponents(components[:2], "M4ROOT", "CLIP") {
+		return strings.EqualFold(filepath.Ext(components[2]), ".xml")
+	}
+	if len(components) == 4 && equalFoldComponents(components[:3], "PRIVATE", "M4ROOT", "CLIP") {
+		return strings.EqualFold(filepath.Ext(components[3]), ".xml")
+	}
+	return false
 }
 
 // fileSizeTime is a composite key for the duplicate detection index

@@ -288,10 +288,11 @@ func TestEnumerateFilesAttachesVideoMetadata(t *testing.T) {
 		t.Fatalf("failed to write sidecar: %v", err)
 	}
 
-	files, err := enumerateFiles(tempDir, config{SidecarDefault: SidecarDelete})
+	result, err := enumerateFiles(tempDir, config{SidecarDefault: SidecarDelete})
 	if err != nil {
 		t.Fatalf("enumerateFiles failed: %v", err)
 	}
+	files := result.Files
 
 	var videoFound, sidecarFound bool
 	for _, file := range files {
