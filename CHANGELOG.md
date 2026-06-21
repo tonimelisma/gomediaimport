@@ -11,6 +11,7 @@
 - Sony `[PRIVATE/]M4ROOT/THMBNL` JPGs and `CLIP/*.XML` companions no longer accumulate when `delete_originals` is enabled.
 - AppleDouble `._*` files are no longer misclassified as media.
 - Destination-planning errors now stop the import instead of silently skipping an unnamable file and continuing into source cleanup.
+- Help and removable-volume list output now propagate writer failures instead of ignoring them.
 
 ### Behavior
 - `delete_originals` is the sole source-cleanup control. Excluded artifacts are preserved when false and removed only after planning, copying, and original deletion all succeed when true.

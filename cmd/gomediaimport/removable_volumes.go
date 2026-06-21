@@ -62,7 +62,9 @@ func listRemovableVolumes(cfg config, out io.Writer) error {
 	}
 
 	w := tabwriter.NewWriter(out, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(w, "ID\tLABEL\tSOURCE\tSAVED\tDESTINATION")
+	if _, err := fmt.Fprintln(w, "ID\tLABEL\tSOURCE\tSAVED\tDESTINATION"); err != nil {
+		return fmt.Errorf("writing removable volume header: %w", err)
+	}
 	for i, volume := range volumes {
 		saved := "no"
 		dest := "-"
@@ -73,7 +75,9 @@ func listRemovableVolumes(cfg config, out io.Writer) error {
 				dest = cfg.DestDir
 			}
 		}
-		fmt.Fprintf(w, "%d\t%s\t%s\t%s\t%s\n", i+1, volume.Label, volume.MountPath, saved, dest)
+		if _, err := fmt.Fprintf(w, "%d\t%s\t%s\t%s\t%s\n", i+1, volume.Label, volume.MountPath, saved, dest); err != nil {
+			return fmt.Errorf("writing removable volume row: %w", err)
+		}
 	}
 	return w.Flush()
 }

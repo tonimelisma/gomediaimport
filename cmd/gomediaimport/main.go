@@ -196,7 +196,9 @@ func run(osArgs []string) error {
 	err = parser.Parse(osArgs[1:])
 	switch {
 	case errors.Is(err, arg.ErrHelp):
-		writeHelp(parser, cfg)
+		if err := writeHelp(parser, cfg); err != nil {
+			return fmt.Errorf("writing help: %w", err)
+		}
 		return errExitClean
 	case errors.Is(err, arg.ErrVersion):
 		fmt.Println(parsedArgs.Version())
@@ -302,9 +304,10 @@ func run(osArgs []string) error {
 	return nil
 }
 
-func writeHelp(parser *arg.Parser, cfg config) {
+func writeHelp(parser *arg.Parser, cfg config) error {
 	parser.WriteHelp(os.Stdout)
-	fmt.Fprintf(os.Stdout, "\nDefaults:\n  Config file: %s\n", cfg.ConfigFile)
+	_, err := fmt.Fprintf(os.Stdout, "\nDefaults:\n  Config file: %s\n", cfg.ConfigFile)
+	return err
 }
 
 func main() {
