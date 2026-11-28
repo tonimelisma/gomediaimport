@@ -1,5 +1,23 @@
 # Changelog
 
+## [v3.0.2] - 2026-11-27
+
+### Added
+- Every merge to main publishes a release with `darwin` and `linux` binaries for `amd64` and `arm64`, `SHA256SUMS` and provenance attestations (`gh attestation verify --repo tonimelisma/gomediaimport`).
+
+### Fixed
+- The module path is now `github.com/tonimelisma/gomediaimport/v3`, so `go install github.com/tonimelisma/gomediaimport/v3/cmd/gomediaimport@latest` installs the newest release instead of v1.9.0.
+- `--version` reports the release version, or the module version Go recorded for `go install ...@vX.Y.Z`, instead of `dev`.
+
+## [v3.0.1] - 2026-11-27
+
+### Security
+- `bep/imagemeta` v0.17.3 fixes GO-2026-7009, reachable from image timestamp extraction.
+- `mattn/go-isatty` v0.0.22.
+
+### Fixed
+- CI runs Go 1.26, which the vulnerability scanner it installs requires; `go.mod` still declares go 1.25.0.
+
 ## [v3.0.0] - 2026-06-20
 
 ### Breaking Changes

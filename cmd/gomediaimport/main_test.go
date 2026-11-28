@@ -24,6 +24,7 @@ func emptyConfigFile(t *testing.T) string {
 	return f.Name()
 }
 
+// Validates: GMI-001
 // TestSetDefaults tests the setDefaults function
 func TestSetDefaults(t *testing.T) {
 	cfg := &config{}
@@ -65,6 +66,7 @@ func TestSetDefaults(t *testing.T) {
 	}
 }
 
+// Validates: GMI-003
 // TestParseConfigFile tests the parseConfigFile function
 func TestParseConfigFile(t *testing.T) {
 	// Test with valid config file
@@ -166,6 +168,7 @@ func writeStrictConfigTestFile(t *testing.T, content string) string {
 	return configPath
 }
 
+// Validates: GMI-005
 // TestValidateConfig tests the validateConfig function
 func TestValidateConfig(t *testing.T) {
 	// Test with valid config
@@ -210,6 +213,7 @@ func TestValidateConfig(t *testing.T) {
 	}
 }
 
+// Validates: GMI-005
 func TestValidateConfigNegativeWorkers(t *testing.T) {
 	tmpDir, err := os.MkdirTemp("", "source")
 	if err != nil {
@@ -229,6 +233,7 @@ func TestValidateConfigNegativeWorkers(t *testing.T) {
 	}
 }
 
+// Validates: GMI-005
 func TestValidateConfigDestination(t *testing.T) {
 	tmpDir, err := os.MkdirTemp("", "source")
 	if err != nil {
@@ -248,6 +253,7 @@ func TestValidateConfigDestination(t *testing.T) {
 	}
 }
 
+// Validates: GMI-006
 // TestRun tests the run function
 func TestRun(t *testing.T) {
 	// Create a temporary source directory
@@ -263,6 +269,7 @@ func TestRun(t *testing.T) {
 	}
 }
 
+// Validates: GMI-004
 func TestRunHelpShowsDefaultConfigFile(t *testing.T) {
 	output, err := captureStdout(t, func() error {
 		return run([]string{"cmd", "--help"})
@@ -277,6 +284,7 @@ func TestRunHelpShowsDefaultConfigFile(t *testing.T) {
 	}
 }
 
+// Validates: GMI-003
 func TestRunRejectsRemovedSkipThumbnailsFlag(t *testing.T) {
 	err := run([]string{"cmd", "--skip-thumbnails"})
 	if err == nil {
@@ -328,6 +336,7 @@ func assertHelpShowsDefaultConfigFile(t *testing.T, output string) {
 	}
 }
 
+// Validates: GMI-007
 func TestRunSourceFromConfig(t *testing.T) {
 	// Create a temporary source directory
 	tmpDir, err := os.MkdirTemp("", "source")
@@ -356,6 +365,7 @@ func TestRunSourceFromConfig(t *testing.T) {
 	}
 }
 
+// Validates: GMI-006
 func TestRunNoSourceAnywhere(t *testing.T) {
 	// Create an empty config file (no source_directory)
 	configFile, err := os.CreateTemp("", "config-*.yaml")
@@ -377,6 +387,7 @@ func TestRunNoSourceAnywhere(t *testing.T) {
 	}
 }
 
+// Validates: GMI-006
 func TestRunInvalidSource(t *testing.T) {
 	err := run([]string{"cmd", "--source", "/non/existent/source/dir", "--check-disk-space=false", "--config", emptyConfigFile(t)})
 	if err == nil {
@@ -384,6 +395,7 @@ func TestRunInvalidSource(t *testing.T) {
 	}
 }
 
+// Validates: GMI-041
 func TestCopyFile(t *testing.T) {
 	tmpDir, err := os.MkdirTemp("", "copyfile-test")
 	if err != nil {
@@ -445,6 +457,7 @@ func TestExists(t *testing.T) {
 
 // Additional tests
 
+// Validates: GMI-010
 // TestConfigMarshalUnmarshal tests the marshaling and unmarshaling of the config struct
 func TestConfigMarshalUnmarshal(t *testing.T) {
 	cfg := &config{
@@ -510,6 +523,7 @@ func TestConfigFilePermissions(t *testing.T) {
 	}
 }
 
+// Validates: GMI-002
 func TestWasFlagProvided(t *testing.T) {
 	osArgs := []string{"cmd", "--source", "/some/dir", "--verbose", "--auto-eject=false"}
 
@@ -524,6 +538,7 @@ func TestWasFlagProvided(t *testing.T) {
 	}
 }
 
+// Validates: GMI-001, GMI-002, GMI-033
 func TestChecksumDuplicateConfiguration(t *testing.T) {
 	createTempConfig := func(t *testing.T, content string) string {
 		t.Helper()
@@ -643,6 +658,7 @@ func TestChecksumDuplicateConfiguration(t *testing.T) {
 	})
 }
 
+// Validates: GMI-001, GMI-002
 func TestAutoEjectConfiguration(t *testing.T) {
 	createTempConfig := func(t *testing.T, content string) string {
 		t.Helper()
@@ -820,6 +836,7 @@ func TestAutoEjectConfiguration(t *testing.T) {
 	})
 }
 
+// Validates: GMI-034
 func TestSidecarConfigParsing(t *testing.T) {
 	createTempConfig := func(t *testing.T, content string) string {
 		t.Helper()
@@ -900,6 +917,7 @@ sidecars:
 	})
 }
 
+// Validates: GMI-005
 func TestValidateConfigInvalidSidecarAction(t *testing.T) {
 	tmpDir, err := os.MkdirTemp("", "source")
 	if err != nil {
@@ -935,6 +953,7 @@ func TestValidateConfigInvalidSidecarAction(t *testing.T) {
 	})
 }
 
+// Validates: GMI-002
 func TestRunBooleanOverrideFalse(t *testing.T) {
 	tmpDir, err := os.MkdirTemp("", "bool-override-test")
 	if err != nil {
@@ -993,6 +1012,7 @@ func TestRunBooleanOverrideFalse(t *testing.T) {
 	}
 }
 
+// Validates: GMI-004
 func TestRunCustomConfigPath(t *testing.T) {
 	tmpDir, err := os.MkdirTemp("", "custom-config-test")
 	if err != nil {
@@ -1017,6 +1037,7 @@ func TestRunCustomConfigPath(t *testing.T) {
 	}
 }
 
+// Validates: GMI-001, GMI-040
 func TestRunWorkersOverride(t *testing.T) {
 	tmpDir, err := os.MkdirTemp("", "workers-override-test")
 	if err != nil {
@@ -1075,6 +1096,7 @@ func TestRunWorkersOverride(t *testing.T) {
 	}
 }
 
+// Validates: GMI-008
 func TestRunQuietSuppressesOutput(t *testing.T) {
 	tmpDir := t.TempDir()
 

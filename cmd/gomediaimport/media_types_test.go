@@ -4,6 +4,7 @@ import (
 	"testing"
 )
 
+// Validates: GMI-020
 // TestGetMediaTypeInfo tests the getMediaTypeInfo function
 func TestGetMediaTypeInfo(t *testing.T) {
 	testCases := []struct {
@@ -64,6 +65,7 @@ func TestGetMediaTypeInfo(t *testing.T) {
 	}
 }
 
+// Validates: GMI-020
 // TestFileTypesCompleteness checks if all FileType constants are included in the fileTypes slice
 func TestFileTypesCompleteness(t *testing.T) {
 	allFileTypes := []FileType{
@@ -87,6 +89,7 @@ func TestFileTypesCompleteness(t *testing.T) {
 	}
 }
 
+// Validates: GMI-020
 // TestJPEGDefaultExtension checks if "jpg" is the default extension for JPEG files
 func TestJPEGDefaultExtension(t *testing.T) {
 	jpegExtension := getFirstExtensionForFileType(JPEG)
@@ -95,6 +98,7 @@ func TestJPEGDefaultExtension(t *testing.T) {
 	}
 }
 
+// Validates: GMI-020
 // TestGetFirstExtensionForFileType tests the getFirstExtensionForFileType function
 func TestGetFirstExtensionForFileType(t *testing.T) {
 	testCases := []struct {
@@ -118,6 +122,7 @@ func TestGetFirstExtensionForFileType(t *testing.T) {
 	}
 }
 
+// Validates: GMI-034
 func TestIsSidecarExtension(t *testing.T) {
 	tests := []struct {
 		ext      string
@@ -144,6 +149,7 @@ func TestIsSidecarExtension(t *testing.T) {
 	}
 }
 
+// Validates: GMI-034
 func TestGetSidecarAction(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -170,6 +176,7 @@ func TestGetSidecarAction(t *testing.T) {
 	}
 }
 
+// Validates: GMI-034
 func TestIsValidSidecarAction(t *testing.T) {
 	tests := []struct {
 		action   SidecarAction

@@ -1,10 +1,25 @@
+# Weekly update proposals, one grouped pull request per ecosystem. Security updates open right
+# away regardless. Actions are pinned by commit SHA with a `# vX.Y.Z` comment, which Dependabot
+# keeps up to date.
 version: 2
 updates:
-  - package-ecosystem: "gomod"
-    directory: "/"
+  - package-ecosystem: github-actions
+    directory: /
     schedule:
-      interval: "weekly"
-  - package-ecosystem: "github-actions"
-    directory: "/"
+      interval: weekly
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: chore
+    groups:
+      actions:
+        patterns: ["*"]
+  - package-ecosystem: gomod
+    directory: /
     schedule:
-      interval: "weekly"
+      interval: weekly
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: chore
+    groups:
+      go-modules:
+        patterns: ["*"]

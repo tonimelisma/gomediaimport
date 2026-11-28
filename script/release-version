@@ -1,0 +1,50 @@
+#!/bin/sh
+# Chooses the release version for a commit and prints `version=`, `create_tag=` and `latest=`
+# lines for $GITHUB_OUTPUT. The series (MAJOR.MINOR) is the one line of VERSION at that commit;
+# the version is the next patch after the highest vX.Y.Z tag in that series, or X.Y.0 when the
+# series has no tag yet. A commit that already carries a tag finishes that release instead.
+# Refuses a version not higher than every existing tag and a commit that does not contain the
+# highest tag (CI runs for consecutive merges can finish out of order).
+# Usage: script/release-version <commit>   (run inside the repository, tags fetched)
+set -eu
+sha=${1:?usage: script/release-version <commit>}
+semver='^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$'
+fail() { echo "::error::$*" >&2; exit 1; }
+
+series=$(git show "$sha:VERSION" 2>/dev/null | tr -d '[:space:]') || fail "no VERSION file at $sha"
+printf '%s\n' "$series" | grep -Eq '^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$' ||
+  fail "VERSION must be MAJOR.MINOR, got '$series'"
+
+tags=$(git tag --list 'v*' | grep -E "$semver" | sort -V || true)
+highest=$(printf '%s\n' "$tags" | tail -n1)
+
+existing=$(git tag --points-at "$sha" | grep -E "$semver" | sort -V | tail -n1 || true)
+if [ -n "$existing" ]; then
+  echo "$sha is already tagged $existing; finishing that release." >&2
+  latest=false
+  [ "$existing" = "$highest" ] && latest=true
+  printf 'version=%s\ncreate_tag=false\nlatest=%s\n' "$existing" "$latest"
+  exit 0
+fi
+
+if [ -n "$highest" ] && ! git merge-base --is-ancestor "$(git rev-list -n1 "$highest")" "$sha"; then
+  fail "$sha does not contain $highest; refusing to release an older commit"
+fi
+
+in_series=$(printf '%s\n' "$tags" | grep -E "^v${series%.*}\.${series#*.}\." | tail -n1 || true)
+if [ -n "$in_series" ]; then
+  patch=${in_series##*.}
+  version="v$series.$((patch + 1))"
+else
+  version="v$series.0"
+fi
+
+if [ -n "$highest" ] && [ "$(printf '%s\n%s\n' "$highest" "$version" | sort -V | tail -n1)" != "$version" ]; then
+  fail "$version is not higher than $highest; raise the series in VERSION"
+fi
+if [ "$version" = "$highest" ] || git rev-parse -q --verify "refs/tags/$version" >/dev/null; then
+  fail "tag $version already exists on another commit"
+fi
+
+echo "Releasing $sha as $version (previous: ${highest:-none})." >&2
+printf 'version=%s\ncreate_tag=true\nlatest=true\n' "$version"

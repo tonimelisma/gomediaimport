@@ -30,6 +30,7 @@ func cleanupTargetKinds(targets []sourceCleanupTarget) []sourceArtifactKind {
 	return kinds
 }
 
+// Validates: GMI-022
 func TestSourceArtifactPathClassification(t *testing.T) {
 	trashTests := []struct {
 		path string
@@ -87,6 +88,7 @@ func TestSourceArtifactPathClassification(t *testing.T) {
 	}
 }
 
+// Validates: GMI-022
 func TestEnumerateFilesSeparatesSourceArtifacts(t *testing.T) {
 	sourceDir := t.TempDir()
 
@@ -143,6 +145,7 @@ func TestEnumerateFilesSeparatesSourceArtifacts(t *testing.T) {
 	}
 }
 
+// Validates: GMI-051
 func TestImportMediaSourceArtifactLifecycle(t *testing.T) {
 	for _, deleteOriginals := range []bool{false, true} {
 		name := "preserve"
@@ -187,6 +190,7 @@ func TestImportMediaSourceArtifactLifecycle(t *testing.T) {
 	}
 }
 
+// Validates: GMI-051
 func TestImportMediaCopyFailurePreservesSourceArtifacts(t *testing.T) {
 	sourceDir := t.TempDir()
 	livePath := writeTestArtifact(t, sourceDir, "live.jpg")
@@ -214,6 +218,7 @@ func TestImportMediaCopyFailurePreservesSourceArtifacts(t *testing.T) {
 	}
 }
 
+// Validates: GMI-051
 func TestImportMediaOriginalDeletionFailurePreservesSourceArtifacts(t *testing.T) {
 	sourceDir := t.TempDir()
 	destDir := t.TempDir()
@@ -243,6 +248,7 @@ func TestImportMediaOriginalDeletionFailurePreservesSourceArtifacts(t *testing.T
 	}
 }
 
+// Validates: GMI-043, GMI-053
 func TestCleanupSourceArtifactsDryRunAndErrors(t *testing.T) {
 	t.Run("DryRun", func(t *testing.T) {
 		sourceDir := t.TempDir()
@@ -295,6 +301,7 @@ func TestCleanupSourceArtifactsDryRunAndErrors(t *testing.T) {
 	})
 }
 
+// Validates: GMI-052
 func TestCleanupSourceArtifactsRejectsUnsafeTargets(t *testing.T) {
 	t.Run("OutsideSource", func(t *testing.T) {
 		sourceDir := t.TempDir()

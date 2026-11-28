@@ -11,6 +11,7 @@ import (
 	"time"
 )
 
+// Validates: GMI-045
 func TestHumanReadableSize(t *testing.T) {
 	tests := []struct {
 		size     int64
@@ -33,6 +34,7 @@ func TestHumanReadableSize(t *testing.T) {
 	}
 }
 
+// Validates: GMI-045
 func TestHumanReadableDuration(t *testing.T) {
 	tests := []struct {
 		duration time.Duration
@@ -53,6 +55,7 @@ func TestHumanReadableDuration(t *testing.T) {
 	}
 }
 
+// Validates: GMI-050
 func TestDeleteOriginalFiles(t *testing.T) {
 	tmpDir, err := os.MkdirTemp("", "delete-test")
 	if err != nil {
@@ -95,6 +98,7 @@ func TestDeleteOriginalFiles(t *testing.T) {
 	}
 }
 
+// Validates: GMI-033
 func TestCopyFilesSkipsPreExisting(t *testing.T) {
 	tmpDir, err := os.MkdirTemp("", "skip-test")
 	if err != nil {
@@ -121,6 +125,7 @@ func TestCopyFilesSkipsPreExisting(t *testing.T) {
 	}
 }
 
+// Validates: GMI-043
 func TestCopyFilesDryRun(t *testing.T) {
 	tmpDir, err := os.MkdirTemp("", "dryrun-test")
 	if err != nil {
@@ -156,6 +161,7 @@ func TestCopyFilesDryRun(t *testing.T) {
 	}
 }
 
+// Validates: GMI-042
 func TestCopyFilesDoesNotVerifyCopiedFilesWithChecksum(t *testing.T) {
 	tmpDir, err := os.MkdirTemp("", "copy-no-checksum-test")
 	if err != nil {
@@ -197,6 +203,7 @@ func TestCopyFilesDoesNotVerifyCopiedFilesWithChecksum(t *testing.T) {
 	}
 }
 
+// Validates: GMI-041
 func TestCopyFileErrors(t *testing.T) {
 	tmpDir, err := os.MkdirTemp("", "copyerr-test")
 	if err != nil {
@@ -230,6 +237,7 @@ func TestCopyFileErrors(t *testing.T) {
 	_ = os.Chmod(readOnlyDir, 0755)
 }
 
+// Validates: GMI-034
 func TestSidecarCopyFollowsParentRename(t *testing.T) {
 	tmpDir, err := os.MkdirTemp("", "sidecar-parent-test")
 	if err != nil {
@@ -349,6 +357,7 @@ func TestSidecarCopyFollowsParentRename(t *testing.T) {
 	t.Error("XMP sidecar not found in files list")
 }
 
+// Validates: GMI-034
 func TestSidecarDeleteAction(t *testing.T) {
 	tmpDir, err := os.MkdirTemp("", "sidecar-delete-test")
 	if err != nil {
@@ -403,6 +412,7 @@ func TestSidecarDeleteAction(t *testing.T) {
 	}
 }
 
+// Validates: GMI-034
 func TestOrphanedSidecarCopiedIndependently(t *testing.T) {
 	tmpDir, err := os.MkdirTemp("", "orphan-sidecar-test")
 	if err != nil {
@@ -439,6 +449,7 @@ func TestOrphanedSidecarCopiedIndependently(t *testing.T) {
 	}
 }
 
+// Validates: GMI-034, GMI-050
 func TestOrphanedSidecarDeletedWithDeleteOriginals(t *testing.T) {
 	tmpDir, err := os.MkdirTemp("", "orphan-del-test")
 	if err != nil {
@@ -493,6 +504,7 @@ func TestOrphanedSidecarDeletedWithDeleteOriginals(t *testing.T) {
 	}
 }
 
+// Validates: GMI-040
 func TestEffectiveWorkers(t *testing.T) {
 	tests := []struct {
 		input    int
@@ -515,6 +527,7 @@ func TestEffectiveWorkers(t *testing.T) {
 	}
 }
 
+// Validates: GMI-045
 func TestCopyFilesNonTTY(t *testing.T) {
 	tmpDir, err := os.MkdirTemp("", "nontty-test")
 	if err != nil {
@@ -589,6 +602,7 @@ func TestCopyFilesNonTTY(t *testing.T) {
 	}
 }
 
+// Validates: GMI-044
 func TestCopyFilesAccumulatesCopyError(t *testing.T) {
 	tmpDir, err := os.MkdirTemp("", "copyerr-accum-test")
 	if err != nil {
@@ -654,6 +668,7 @@ func TestCopyFilesAccumulatesCopyError(t *testing.T) {
 	}
 }
 
+// Validates: GMI-044
 func TestDeleteOriginalFilesReturnsError(t *testing.T) {
 	tmpDir, err := os.MkdirTemp("", "delete-err-test")
 	if err != nil {
@@ -687,6 +702,7 @@ func TestDeleteOriginalFilesReturnsError(t *testing.T) {
 	}
 }
 
+// Validates: GMI-045
 func TestHumanReadableDurationEdgeCases(t *testing.T) {
 	tests := []struct {
 		duration time.Duration
@@ -708,6 +724,7 @@ func TestHumanReadableDurationEdgeCases(t *testing.T) {
 	}
 }
 
+// Validates: GMI-040
 func TestCopyFilesConcurrent(t *testing.T) {
 	tmpDir, err := os.MkdirTemp("", "concurrent-copy-test")
 	if err != nil {
@@ -772,6 +789,7 @@ func TestCopyFilesConcurrent(t *testing.T) {
 	}
 }
 
+// Validates: GMI-030, GMI-031, GMI-032, GMI-034
 func TestPlanDestinations(t *testing.T) {
 	destDir := t.TempDir()
 	now := time.Date(2024, 6, 15, 10, 30, 0, 0, time.Local)
@@ -1028,6 +1046,7 @@ func TestPlanDestinations(t *testing.T) {
 	})
 }
 
+// Validates: GMI-045
 func TestProgressTracker(t *testing.T) {
 	t.Run("NonTTYOutput", func(t *testing.T) {
 		// Capture stdout via pipe (non-TTY)
@@ -1103,6 +1122,7 @@ func TestProgressTracker(t *testing.T) {
 	})
 }
 
+// Validates: GMI-035
 func TestImportMediaCheckDiskSpace(t *testing.T) {
 	if runtime.GOOS != "darwin" && runtime.GOOS != "linux" {
 		t.Skip("checkDiskSpace only supported on macOS and Linux")

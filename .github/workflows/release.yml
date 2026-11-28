@@ -1,0 +1,157 @@
+# Publishes a GitHub Release for every commit that lands on main and passes CI.
+#
+# This is the only workflow that creates tags, releases or attestations. A binary is verified
+# by its provenance attestation, signed by this file running on refs/heads/main, so nothing here
+# may run from another branch, and nothing triggers on tag pushes. The version comes from
+# script/release-version: the next patch in the series that VERSION names.
+name: Release
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+  # Re-runs the release for main's head, for example after a failed publish.
+  workflow_dispatch:
+
+permissions: {}
+
+# One release at a time, so two runs can never claim the same version.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push' &&
+       github.event.workflow_run.head_branch == 'main' &&
+       github.event.workflow_run.head_repository.full_name == github.repository)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - name: Refuse anything but main
+        env:
+          REF: ${{ github.ref }}
+        run: |
+          if [ "$REF" != "refs/heads/main" ]; then
+            echo "::error::Releases are published only from refs/heads/main, not $REF"
+            exit 1
+          fi
+
+      - name: Choose the commit
+        id: commit
+        env:
+          RUN_SHA: ${{ github.event.workflow_run.head_sha }}
+          MAIN_SHA: ${{ github.sha }}
+        run: |
+          # The commit CI tested, or main's head for a dispatch.
+          sha="${RUN_SHA:-$MAIN_SHA}"
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ steps.commit.outputs.sha }}
+          fetch-depth: 0
+          fetch-tags: true
+          persist-credentials: false
+
+      - name: Choose the version
+        id: version
+        env:
+          SHA: ${{ steps.commit.outputs.sha }}
+        run: script/release-version "$SHA" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
+        with:
+          go-version: stable
+          cache: false
+
+      - name: Build
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          mkdir dist
+          for os in darwin linux; do
+            for arch in amd64 arm64; do
+              CGO_ENABLED=0 GOOS="$os" GOARCH="$arch" go build -trimpath \
+                -ldflags "-s -w -X main.version=$VERSION" \
+                -o "dist/gomediaimport-$VERSION-$os-$arch" ./cmd/gomediaimport
+            done
+          done
+          file dist/*
+          file "dist/gomediaimport-$VERSION-linux-amd64" | grep -q 'statically linked'
+          file "dist/gomediaimport-$VERSION-darwin-arm64" | grep -q 'Mach-O 64-bit arm64'
+          file "dist/gomediaimport-$VERSION-darwin-amd64" | grep -q 'Mach-O 64-bit x86_64'
+
+          out=$("dist/gomediaimport-$VERSION-linux-amd64" --version)
+          if [ "$out" != "gomediaimport $VERSION" ]; then
+            echo "::error::--version printed '$out', expected 'gomediaimport $VERSION'"
+            exit 1
+          fi
+
+          (cd dist && sha256sum gomediaimport-* > SHA256SUMS && cat SHA256SUMS)
+
+      - name: Create the tag
+        if: steps.version.outputs.create_tag == 'true'
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          SHA: ${{ steps.commit.outputs.sha }}
+        run: gh api "repos/$GH_REPO/git/refs" -f "ref=refs/tags/$VERSION" -f "sha=$SHA"
+
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: dist/gomediaimport-*
+
+      - name: Publish the release
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          LATEST: ${{ steps.version.outputs.latest }}
+        run: |
+          set -euo pipefail
+          # Look the release up in the full list: the by-tag endpoint does not return drafts,
+          # and an earlier run may have left one behind.
+          release=$(gh api --paginate "repos/$GH_REPO/releases" \
+            --jq ".[] | select(.tag_name == \"$VERSION\") | .id")
+
+          if [ -z "$release" ]; then
+            gh release create "$VERSION" --verify-tag --draft --generate-notes --title "$VERSION"
+          fi
+
+          # Assets go up while the release is still a draft or incomplete, and it is published
+          # last, so nobody sees a partial release. --clobber keeps the binaries consistent with
+          # this run's SHA256SUMS and attestations.
+          gh release upload "$VERSION" dist/* --clobber
+          gh release edit "$VERSION" --draft=false --prerelease=false "--latest=$LATEST"
+
+      # Validates: GMI-080 (on every release: checksums, attestations, latest)
+      - name: Verify the published release
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          LATEST: ${{ steps.version.outputs.latest }}
+          WORKFLOW: ${{ github.repository }}/.github/workflows/release.yml
+        run: |
+          set -euo pipefail
+          mkdir check && cd check
+          gh release download "$VERSION" --pattern 'gomediaimport-*' --pattern SHA256SUMS
+          test "$(ls gomediaimport-* | wc -l)" -eq 4
+          sha256sum --check SHA256SUMS
+          for bin in gomediaimport-*; do
+            gh attestation verify "$bin" \
+              --repo "$GH_REPO" \
+              --signer-workflow "$WORKFLOW" \
+              --source-ref refs/heads/main
+          done
+          latest=$(gh api "repos/$GH_REPO/releases/latest" --jq .tag_name)
+          if [ "$LATEST" = "true" ] && [ "$latest" != "$VERSION" ]; then
+            echo "::error::releases/latest is $latest, not $VERSION"
+            exit 1
+          fi

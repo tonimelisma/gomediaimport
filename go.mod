@@ -1,4 +1,4 @@
-module github.com/tonimelisma/gomediaimport
+module github.com/tonimelisma/gomediaimport/v3
 
 go 1.25.0
 

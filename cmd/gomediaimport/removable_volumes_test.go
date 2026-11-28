@@ -27,11 +27,12 @@ func withImportMediaRunner(t *testing.T, runner func(config) error) {
 	t.Cleanup(func() { importMediaRunner = original })
 }
 
+// Validates: GMI-003, GMI-062
 func TestRemovableVolumesConfigParsing(t *testing.T) {
 	content := `
 destination_directory: /default/dest
 removable_volumes:
-  SOFIA: {}
+  CAMERA: {}
   "4152150790":
     destination_directory: /custom/dest
 `
@@ -40,8 +41,8 @@ removable_volumes:
 		t.Fatalf("failed to unmarshal config: %v", err)
 	}
 
-	if _, ok := cfg.RemovableVolumes["SOFIA"]; !ok {
-		t.Fatal("expected SOFIA removable volume entry")
+	if _, ok := cfg.RemovableVolumes["CAMERA"]; !ok {
+		t.Fatal("expected CAMERA removable volume entry")
 	}
 	if got := cfg.RemovableVolumes["4152150790"].DestDir; got != "/custom/dest" {
 		t.Fatalf("got destination %q, want /custom/dest", got)
@@ -56,18 +57,19 @@ removable_volumes:
 	}
 }
 
+// Validates: GMI-060
 func TestListRemovableVolumes(t *testing.T) {
 	withMountedRemovableVolumes(t, []mountedRemovableVolume{
 		{Label: "UNSAVED", MountPath: "/Volumes/UNSAVED"},
-		{Label: "SOFIA", MountPath: "/Volumes/SOFIA"},
+		{Label: "CAMERA", MountPath: "/Volumes/CAMERA"},
 		{Label: "CAM", MountPath: "/Volumes/CAM"},
 	})
 
 	cfg := config{
 		DestDir: "/default/dest",
 		RemovableVolumes: map[string]removableVolumeConfig{
-			"SOFIA": {},
-			"CAM":   {DestDir: "/custom/dest"},
+			"CAMERA": {},
+			"CAM":    {DestDir: "/custom/dest"},
 		},
 	}
 
@@ -77,13 +79,14 @@ func TestListRemovableVolumes(t *testing.T) {
 	}
 
 	output := out.String()
-	for _, want := range []string{"ID", "LABEL", "SOURCE", "SAVED", "DESTINATION", "SOFIA", "/Volumes/SOFIA", "yes", "/default/dest", "CAM", "/custom/dest", "UNSAVED", "no"} {
+	for _, want := range []string{"ID", "LABEL", "SOURCE", "SAVED", "DESTINATION", "CAMERA", "/Volumes/CAMERA", "yes", "/default/dest", "CAM", "/custom/dest", "UNSAVED", "no"} {
 		if !strings.Contains(output, want) {
 			t.Fatalf("expected output to contain %q, got:\n%s", want, output)
 		}
 	}
 }
 
+// Validates: GMI-061
 func TestAddRemovableVolume(t *testing.T) {
 	t.Run("RejectsUnknownConfigKeysBeforeUpdating", func(t *testing.T) {
 		destDir := t.TempDir()
@@ -91,10 +94,10 @@ func TestAddRemovableVolume(t *testing.T) {
 		if err := os.WriteFile(configPath, []byte("destination_directory: "+destDir+"\nchecksum_imports: true\n"), 0600); err != nil {
 			t.Fatal(err)
 		}
-		withMountedRemovableVolumes(t, []mountedRemovableVolume{{Label: "SOFIA", MountPath: "/Volumes/SOFIA"}})
+		withMountedRemovableVolumes(t, []mountedRemovableVolume{{Label: "CAMERA", MountPath: "/Volumes/CAMERA"}})
 
-		customDest := filepath.Join(destDir, "Sofia")
-		err := run([]string{"cmd", "--config", configPath, "volumes", "add", "SOFIA", "--dest", customDest})
+		customDest := filepath.Join(destDir, "Camera")
+		err := run([]string{"cmd", "--config", configPath, "volumes", "add", "CAMERA", "--dest", customDest})
 		if err == nil {
 			t.Fatal("expected unknown config key to fail")
 		}
@@ -117,7 +120,7 @@ func TestAddRemovableVolume(t *testing.T) {
 		if err := os.WriteFile(configPath, []byte("destination_directory: "+t.TempDir()+"\n"), 0600); err != nil {
 			t.Fatal(err)
 		}
-		withMountedRemovableVolumes(t, []mountedRemovableVolume{{Label: "SOFIA", MountPath: "/Volumes/SOFIA"}})
+		withMountedRemovableVolumes(t, []mountedRemovableVolume{{Label: "CAMERA", MountPath: "/Volumes/CAMERA"}})
 
 		err := run([]string{"cmd", "--config", configPath, "volumes", "add", "MISSING"})
 		if err == nil {
@@ -133,7 +136,7 @@ func TestAddRemovableVolume(t *testing.T) {
 		if err := os.WriteFile(configPath, []byte("destination_directory: "+t.TempDir()+"\n"), 0600); err != nil {
 			t.Fatal(err)
 		}
-		withMountedRemovableVolumes(t, []mountedRemovableVolume{{Label: "SOFIA", MountPath: "/Volumes/SOFIA"}})
+		withMountedRemovableVolumes(t, []mountedRemovableVolume{{Label: "CAMERA", MountPath: "/Volumes/CAMERA"}})
 
 		if err := run([]string{"cmd", "--config", configPath, "volumes", "add", "1"}); err != nil {
 			t.Fatalf("run volumes add by ID failed: %v", err)
@@ -143,21 +146,21 @@ func TestAddRemovableVolume(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if !strings.Contains(string(data), "SOFIA: {}") {
-			t.Fatalf("expected config to contain SOFIA empty map, got:\n%s", string(data))
+		if !strings.Contains(string(data), "CAMERA: {}") {
+			t.Fatalf("expected config to contain CAMERA empty map, got:\n%s", string(data))
 		}
 	})
 
 	t.Run("LeavesExistingDestinationWhenNoDestinationProvided", func(t *testing.T) {
 		configPath := filepath.Join(t.TempDir(), "config.yaml")
 		existingDest := filepath.Join(t.TempDir(), "existing")
-		content := "destination_directory: " + t.TempDir() + "\nremovable_volumes:\n  SOFIA:\n    destination_directory: " + existingDest + "\n"
+		content := "destination_directory: " + t.TempDir() + "\nremovable_volumes:\n  CAMERA:\n    destination_directory: " + existingDest + "\n"
 		if err := os.WriteFile(configPath, []byte(content), 0600); err != nil {
 			t.Fatal(err)
 		}
-		withMountedRemovableVolumes(t, []mountedRemovableVolume{{Label: "SOFIA", MountPath: "/Volumes/SOFIA"}})
+		withMountedRemovableVolumes(t, []mountedRemovableVolume{{Label: "CAMERA", MountPath: "/Volumes/CAMERA"}})
 
-		if err := run([]string{"cmd", "--config", configPath, "volumes", "add", "SOFIA"}); err != nil {
+		if err := run([]string{"cmd", "--config", configPath, "volumes", "add", "CAMERA"}); err != nil {
 			t.Fatalf("run volumes add failed: %v", err)
 		}
 
@@ -171,14 +174,15 @@ func TestAddRemovableVolume(t *testing.T) {
 	})
 }
 
+// Validates: GMI-062
 func TestImportConfiguredRemovableVolumes(t *testing.T) {
 	defaultDest := t.TempDir()
 	customDest := t.TempDir()
 	camMountA := t.TempDir()
 	camMountB := t.TempDir()
-	sofiaMount := t.TempDir()
+	cameraMount := t.TempDir()
 	withMountedRemovableVolumes(t, []mountedRemovableVolume{
-		{Label: "SOFIA", MountPath: sofiaMount},
+		{Label: "CAMERA", MountPath: cameraMount},
 		{Label: "CAM", MountPath: camMountB},
 		{Label: "UNSAVED", MountPath: t.TempDir()},
 		{Label: "CAM", MountPath: camMountA},
@@ -195,9 +199,9 @@ func TestImportConfiguredRemovableVolumes(t *testing.T) {
 		SidecarDefault: SidecarDelete,
 		Sidecars:       map[string]SidecarAction{},
 		RemovableVolumes: map[string]removableVolumeConfig{
-			"CAM":   {},
-			"SOFIA": {DestDir: customDest},
-			"AWAY":  {},
+			"CAM":    {},
+			"CAMERA": {DestDir: customDest},
+			"AWAY":   {},
 		},
 	}
 
@@ -214,7 +218,7 @@ func TestImportConfiguredRemovableVolumes(t *testing.T) {
 	}{
 		{camMountA, defaultDest},
 		{camMountB, defaultDest},
-		{sofiaMount, customDest},
+		{cameraMount, customDest},
 	}
 	for i, want := range expected {
 		if calls[i].SourceDir != want.source || calls[i].DestDir != want.dest {
@@ -223,13 +227,14 @@ func TestImportConfiguredRemovableVolumes(t *testing.T) {
 	}
 }
 
+// Validates: GMI-063
 func TestImportConfiguredRemovableVolumesContinuesAfterFailure(t *testing.T) {
 	defaultDest := t.TempDir()
 	firstMount := t.TempDir()
 	secondMount := t.TempDir()
 	withMountedRemovableVolumes(t, []mountedRemovableVolume{
 		{Label: "CAM", MountPath: firstMount},
-		{Label: "SOFIA", MountPath: secondMount},
+		{Label: "CAMERA", MountPath: secondMount},
 	})
 
 	var calls []string
@@ -246,8 +251,8 @@ func TestImportConfiguredRemovableVolumesContinuesAfterFailure(t *testing.T) {
 		SidecarDefault: SidecarDelete,
 		Sidecars:       map[string]SidecarAction{},
 		RemovableVolumes: map[string]removableVolumeConfig{
-			"CAM":   {},
-			"SOFIA": {},
+			"CAM":    {},
+			"CAMERA": {},
 		},
 	}
 

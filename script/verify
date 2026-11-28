@@ -1,0 +1,20 @@
+#!/bin/sh
+# Everything CI checks, in one command: formatting, vet for both release platforms, the
+# race-enabled test suite, golangci-lint (which includes staticcheck), the vulnerability scan,
+# the release-version tests and the requirement/doc traceability check. Run before every push.
+# CI runs this on Linux and on macOS, so each platform's files are tested and linted on it.
+set -eu
+cd "$(dirname "$0")/.."
+unformatted=$(gofmt -l .)
+if [ -n "$unformatted" ]; then
+  echo "These files need gofmt:"
+  echo "$unformatted"
+  exit 1
+fi
+GOOS=linux go vet ./...
+GOOS=darwin go vet ./...
+go test -race ./...
+go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.15.0 run ./...
+go run golang.org/x/vuln/cmd/govulncheck@v1.10.0 ./...
+script/release-version_test.sh
+script/process-check
