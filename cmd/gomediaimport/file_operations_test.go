@@ -16,6 +16,7 @@ func constructEjectCommand(sourceDir string) *exec.Cmd {
 	return exec.Command("diskutil", "eject", sourceDir)
 }
 
+// Validates: GMI-054
 func TestEjectDriveMacOS_CommandConstruction(t *testing.T) {
 	sourceDir := "/test/source/dir"
 	cmd := constructEjectCommand(sourceDir)
@@ -31,6 +32,7 @@ func TestEjectDriveMacOS_CommandConstruction(t *testing.T) {
 	}
 }
 
+// Validates: GMI-020
 func TestEnumerateFiles(t *testing.T) {
 	// Create temporary directory for testing
 	tempDir, err := os.MkdirTemp("", "test")
@@ -100,6 +102,7 @@ func TestEnumerateFiles(t *testing.T) {
 	}
 }
 
+// Validates: GMI-031
 func TestSetFinalDestinationFilename(t *testing.T) {
 	tempDir, err := os.MkdirTemp("", "test")
 	if err != nil {
@@ -168,6 +171,7 @@ func TestSetFinalDestinationFilename(t *testing.T) {
 	}
 }
 
+// Validates: GMI-033
 func TestIsDuplicate(t *testing.T) {
 	tempDir, err := os.MkdirTemp("", "test")
 	if err != nil {
@@ -255,6 +259,7 @@ func TestIsDuplicate(t *testing.T) {
 	})
 }
 
+// Validates: GMI-033
 func TestCalculateXXHash(t *testing.T) {
 	tempDir, err := os.MkdirTemp("", "test")
 	if err != nil {
@@ -286,6 +291,7 @@ func TestCalculateXXHash(t *testing.T) {
 	}
 }
 
+// Validates: GMI-041
 func TestSetFileTimes(t *testing.T) {
 	tmpDir, err := os.MkdirTemp("", "setfiletimes-test")
 	if err != nil {
@@ -313,6 +319,7 @@ func TestSetFileTimes(t *testing.T) {
 	}
 }
 
+// Validates: GMI-033
 func TestIsDuplicateInPreviousFiles(t *testing.T) {
 	tmpDir, err := os.MkdirTemp("", "dupcheck-test")
 	if err != nil {
@@ -381,6 +388,7 @@ func TestIsDuplicateInPreviousFiles(t *testing.T) {
 	}
 }
 
+// Validates: GMI-041
 func TestCopyFilesActualCopy(t *testing.T) {
 	tmpDir, err := os.MkdirTemp("", "actualcopy-test")
 	if err != nil {
@@ -437,6 +445,7 @@ func TestCopyFilesActualCopy(t *testing.T) {
 	}
 }
 
+// Validates: GMI-034
 func TestEnumerateFilesWithSidecars(t *testing.T) {
 	tempDir, err := os.MkdirTemp("", "sidecar-enum-test")
 	if err != nil {
@@ -527,6 +536,7 @@ func TestEnumerateFilesWithSidecars(t *testing.T) {
 	})
 }
 
+// Validates: GMI-032
 func TestIsNameTakenByPreviousFile(t *testing.T) {
 	files := []FileInfo{
 		{DestDir: "/dest", DestName: "IMG_001.jpg"},
@@ -559,6 +569,7 @@ func TestIsNameTakenByPreviousFile(t *testing.T) {
 	}
 }
 
+// Validates: GMI-021
 func TestEnumerateFilesSkipsSymlinks(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("symlinks may not be supported on Windows")
@@ -618,6 +629,7 @@ func TestEnumerateFilesSkipsSymlinks(t *testing.T) {
 	}
 }
 
+// Validates: GMI-026
 func TestZeroByteFile(t *testing.T) {
 	tmpDir, err := os.MkdirTemp("", "zerobyte-test")
 	if err != nil {
@@ -674,6 +686,7 @@ func TestZeroByteFile(t *testing.T) {
 	}
 }
 
+// Validates: GMI-031
 func TestSetFinalDestinationFilenameMultipleCollisions(t *testing.T) {
 	tmpDir, err := os.MkdirTemp("", "multi-collision-test")
 	if err != nil {
@@ -746,6 +759,7 @@ func TestSetFinalDestinationFilenameMultipleCollisions(t *testing.T) {
 	}
 }
 
+// Validates: GMI-032
 func TestSetFinalDestinationFilenameNoRename(t *testing.T) {
 	tmpDir, err := os.MkdirTemp("", "norename-test")
 	if err != nil {
@@ -794,6 +808,7 @@ func TestSetFinalDestinationFilenameNoRename(t *testing.T) {
 	}
 }
 
+// Validates: GMI-032, GMI-033
 func TestSetFinalDestinationFilenameDuplicateInBatch(t *testing.T) {
 	tmpDir, err := os.MkdirTemp("", "batch-dup-test")
 	if err != nil {
@@ -866,6 +881,7 @@ func TestSetFinalDestinationFilenameDuplicateInBatch(t *testing.T) {
 	}
 }
 
+// Validates: GMI-035
 func TestAvailableDiskSpace(t *testing.T) {
 	if runtime.GOOS != "darwin" && runtime.GOOS != "linux" {
 		t.Skip("availableDiskSpace only supported on macOS and Linux")
@@ -897,6 +913,7 @@ func TestAvailableDiskSpace(t *testing.T) {
 	}
 }
 
+// Validates: GMI-035
 func TestCheckDiskSpace(t *testing.T) {
 	if runtime.GOOS != "darwin" && runtime.GOOS != "linux" {
 		t.Skip("checkDiskSpace only supported on macOS and Linux")

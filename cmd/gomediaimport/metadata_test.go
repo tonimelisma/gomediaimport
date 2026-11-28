@@ -38,6 +38,7 @@ func requireVideoMetadata(t *testing.T, metadata mediaMetadata) *VideoMetadata {
 	return metadata.VideoMetadata
 }
 
+// Validates: GMI-024
 func TestExtractVideoMetadataMP4Fixture(t *testing.T) {
 	fallbackTime := time.Date(2001, 2, 3, 4, 5, 6, 0, time.UTC)
 
@@ -87,6 +88,7 @@ func TestExtractVideoMetadataMP4Fixture(t *testing.T) {
 	}
 }
 
+// Validates: GMI-024
 func TestExtractVideoMetadataMOVFixture(t *testing.T) {
 	fallbackTime := time.Date(2001, 2, 3, 4, 5, 6, 0, time.UTC)
 
@@ -118,6 +120,7 @@ func TestExtractVideoMetadataMOVFixture(t *testing.T) {
 	}
 }
 
+// Validates: GMI-024
 func TestExtractVideoMetadataPreservesTimezoneGPSAndCamera(t *testing.T) {
 	fallbackTime := time.Date(2001, 2, 3, 4, 5, 6, 0, time.UTC)
 
@@ -151,6 +154,7 @@ func TestExtractVideoMetadataPreservesTimezoneGPSAndCamera(t *testing.T) {
 	}
 }
 
+// Validates: GMI-024
 func TestResolveVideoTimestampProvenancePrefersQuickTime(t *testing.T) {
 	var tags videometa.Tags
 	tags.Add(videometa.TagInfo{
@@ -191,6 +195,7 @@ func TestResolveVideoTimestampProvenancePrefersQuickTime(t *testing.T) {
 	}
 }
 
+// Validates: GMI-024
 func TestResolveVideoTimestampProvenanceUsesVendorDateTimeOriginal(t *testing.T) {
 	var tags videometa.Tags
 	tags.Add(videometa.TagInfo{
@@ -215,6 +220,7 @@ func TestResolveVideoTimestampProvenanceUsesVendorDateTimeOriginal(t *testing.T)
 	}
 }
 
+// Validates: GMI-025
 func TestExtractVideoMetadataUnsupportedContainerFallsBack(t *testing.T) {
 	fallbackTime := time.Date(2001, 2, 3, 4, 5, 6, 0, time.UTC)
 
@@ -238,6 +244,7 @@ func TestExtractVideoMetadataUnsupportedContainerFallsBack(t *testing.T) {
 	}
 }
 
+// Validates: GMI-025
 func TestExtractVideoMetadataCorruptSupportedFileFallsBack(t *testing.T) {
 	dir := t.TempDir()
 	filePath := filepath.Join(dir, "corrupt.mp4")
@@ -266,6 +273,7 @@ func TestExtractVideoMetadataCorruptSupportedFileFallsBack(t *testing.T) {
 	}
 }
 
+// Validates: GMI-025
 func TestExtractMetadataRawVideoType(t *testing.T) {
 	fi := FileInfo{
 		SourceDir:     "/tmp",
@@ -280,6 +288,7 @@ func TestExtractMetadataRawVideoType(t *testing.T) {
 	}
 }
 
+// Validates: GMI-024
 func TestEnumerateFilesAttachesVideoMetadata(t *testing.T) {
 	tempDir := t.TempDir()
 
@@ -324,6 +333,7 @@ func TestEnumerateFilesAttachesVideoMetadata(t *testing.T) {
 	}
 }
 
+// Validates: GMI-034
 func TestSidecarDefaultsMPLAndCPI(t *testing.T) {
 	for _, ext := range []string{"mpl", "cpi"} {
 		if !isSidecarExtension(ext) {

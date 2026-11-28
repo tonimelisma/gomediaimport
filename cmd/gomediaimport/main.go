@@ -13,9 +13,6 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// version is set at build time via -ldflags or defaults to "dev"
-var version = "dev"
-
 // cliArgs holds the command-line arguments
 type cliArgs struct {
 	SourceDir            string      `arg:"--source" help:"Source directory for media files"`
@@ -38,7 +35,7 @@ type cliArgs struct {
 
 // Version returns the version string for --version flag
 func (cliArgs) Version() string {
-	return "gomediaimport " + version
+	return "gomediaimport " + resolveVersion(version)
 }
 
 // config holds the application configuration

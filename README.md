@@ -18,21 +18,29 @@ gomediaimport is a CLI tool that imports and organizes pictures and videos from 
 
 ## Installation
 
-```bash
-go install github.com/tonimelisma/gomediaimport/cmd/gomediaimport@latest
-```
-
-Or clone and build locally:
+Download the binary for your platform (`darwin` or `linux`, `amd64` or `arm64`) from the
+[latest release](https://github.com/tonimelisma/gomediaimport/releases/latest), check it and
+put it on your `PATH`:
 
 ```bash
-git clone https://github.com/tonimelisma/gomediaimport.git
-cd gomediaimport
-go install -ldflags "-X main.version=3.0.0" ./cmd/gomediaimport
+sha256sum --check --ignore-missing SHA256SUMS      # macOS: shasum -a 256 --check --ignore-missing SHA256SUMS
+gh attestation verify gomediaimport-*-darwin-arm64 --repo tonimelisma/gomediaimport
+chmod +x gomediaimport-*-darwin-arm64 && mv gomediaimport-*-darwin-arm64 /usr/local/bin/gomediaimport
 ```
 
-This installs gomediaimport into your `$GOPATH/bin` directory. Ensure it's in your PATH.
+Every release is built by `.github/workflows/release.yml` from a commit on `main` that passed CI,
+and its binaries carry a provenance attestation that `gh attestation verify` checks. The macOS
+binaries are not notarized: one downloaded with a browser needs
+`xattr -d com.apple.quarantine <file>` before it runs (`gh release download` and `curl` do not
+set the quarantine flag).
 
-To embed the version number, pass it via `-ldflags` as shown above. Without it, `--version` will print `dev`.
+Or install with Go:
+
+```bash
+go install github.com/tonimelisma/gomediaimport/v3/cmd/gomediaimport@latest
+```
+
+`--version` prints the release version, or the module version Go recorded for `go install`.
 
 ## Usage
 
@@ -83,10 +91,10 @@ gomediaimport
 gomediaimport volumes list
 
 # Save a currently mounted removable volume label using the default destination
-gomediaimport volumes add SOFIA
+gomediaimport volumes add CAMERA
 
 # Save the first listed removable volume with its own destination
-gomediaimport volumes add 1 --dest "/Users/me/Pictures/Sofia"
+gomediaimport volumes add 1 --dest "/Users/me/Pictures/Camera"
 
 # Import all configured removable volume labels currently mounted
 gomediaimport
@@ -127,12 +135,12 @@ Saved removable volumes are configured by label. Labels are selectors, not uniqu
 destination_directory: "/Users/me/Pictures/Camera Roll"
 
 removable_volumes:
-  SOFIA: {}
+  CAMERA: {}
   "4152150790":
     destination_directory: "/Users/me/Pictures/Camera 4152150790"
 ```
 
-In this example, mounted removable volumes labeled `SOFIA` import to the global `destination_directory`. Mounted removable volumes labeled `4152150790` import to their volume-specific destination.
+In this example, mounted removable volumes labeled `CAMERA` import to the global `destination_directory`. Mounted removable volumes labeled `4152150790` import to their volume-specific destination.
 
 ## Supported File Types
 
@@ -208,7 +216,7 @@ Contributions are welcome! Please:
 1. Fork the repository
 2. Create a branch for your feature or fix
 3. Write tests to cover your changes
-4. Ensure all tests pass (`go test -race ./cmd/gomediaimport`)
+4. Ensure `script/verify` passes
 5. Submit a pull request
 
 ## License

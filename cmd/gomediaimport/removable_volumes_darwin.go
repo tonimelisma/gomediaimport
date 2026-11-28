@@ -68,8 +68,9 @@ func darwinVolumeLabel(mountPath string) (string, error) {
 		Volattr:     unix.ATTR_VOL_INFO | unix.ATTR_VOL_NAME,
 	}
 	buf := make([]byte, 4096)
+	// x/sys/unix exports no getattrlist wrapper, so this is a raw syscall (#11).
 	_, _, errno := unix.Syscall6(
-		unix.SYS_GETATTRLIST,
+		unix.SYS_GETATTRLIST, //nolint:staticcheck // SA1019: no libSystem wrapper is exported (#11)
 		uintptr(unsafe.Pointer(path)),
 		uintptr(unsafe.Pointer(&attrList)),
 		uintptr(unsafe.Pointer(&buf[0])),

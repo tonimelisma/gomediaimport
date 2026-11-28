@@ -8,6 +8,7 @@ import (
 	"golang.org/x/sys/unix"
 )
 
+// Validates: GMI-064
 func TestDarwinIsRemovableVolumeCandidate(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -32,8 +33,8 @@ func TestDarwinIsRemovableVolumeCandidate(t *testing.T) {
 		},
 		{
 			name:        "network share under volumes",
-			mountPath:   "/Volumes/toni",
-			mountedFrom: "//toni@192.168.0.2/toni",
+			mountPath:   "/Volumes/share",
+			mountedFrom: "//user@nas.example/share",
 			flags:       0,
 			want:        false,
 		},

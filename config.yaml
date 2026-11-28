@@ -20,7 +20,7 @@ destination_directory: "/path/to/your/destination/directory"
 # label, all matching volumes are imported.
 #
 # removable_volumes:
-#   SOFIA: {}
+#   CAMERA: {}
 #   "4152150790":
 #     destination_directory: "/path/to/custom/destination"
 
